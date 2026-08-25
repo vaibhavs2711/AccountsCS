@@ -1,0 +1,99 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Leave Requests — Cityscope Admin{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h2>Leave Requests</h2>
+    {% if pending_leaves|length > 0 %}
+    <span class="page-meta">
+        <span class="badge-pending">{{ pending_leaves|length }} pending</span>
+    </span>
+    {% endif %}
+</div>
+
+{% if success %}
+<div class="alert-success">{{ success }}</div>
+{% endif %}
+
+<!-- Pending Approvals -->
+{% if pending_leaves|length > 0 %}
+<div class="card">
+    <div class="card-title">⏳ Pending Approvals</div>
+    <div class="table-responsive">
+        <table class="table mb-0">
+            <thead>
+                <tr>
+                    <th>Employee</th>
+                    <th>Date of Leave</th>
+                    <th>Applied On</th>
+                    <th>Reason</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for lr in pending_leaves %}
+                <tr>
+                    <td><strong>{{ lr.employee_name }}</strong></td>
+                    <td>{{ lr.date_of_leave.strftime('%d %b %Y') }}</td>
+                    <td><span class="text-muted-custom">{{ lr.applied_on.strftime('%d %b %Y, %I:%M %p') }}</span></td>
+                    <td>{{ lr.reason if lr.reason else '—' }}</td>
+                    <td>
+                        <div class="d-flex gap-2">
+                            <form method="POST" action="{{ url_for('admin_approve_leave', id=lr.id) }}">
+                                <button type="submit" class="btn-success-sm">Approve</button>
+                            </form>
+                            <form method="POST" action="{{ url_for('admin_reject_leave', id=lr.id) }}">
+                                <button type="submit" class="btn-danger-sm">Reject</button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+<!-- All Leave Requests -->
+<div class="card">
+    <div class="card-title">All Leave Requests</div>
+    {% if all_leaves|length > 0 %}
+    <div class="table-responsive">
+        <table class="table mb-0">
+            <thead>
+                <tr>
+                    <th>Employee</th>
+                    <th>Date of Leave</th>
+                    <th>Applied On</th>
+                    <th>Reason</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for lr in all_leaves %}
+                <tr>
+                    <td><strong>{{ lr.employee_name }}</strong></td>
+                    <td>{{ lr.date_of_leave.strftime('%d %b %Y') }}</td>
+                    <td><span class="text-muted-custom">{{ lr.applied_on.strftime('%d %b %Y, %I:%M %p') }}</span></td>
+                    <td>{{ lr.reason if lr.reason else '—' }}</td>
+                    <td>
+                        {% if lr.status == 'PENDING' %}
+                            <span class="badge-pending">PENDING</span>
+                        {% elif lr.status == 'APPROVED' %}
+                            <span class="badge-approved">APPROVED</span>
+                        {% else %}
+                            <span class="badge-rejected">REJECTED</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p class="text-muted-custom" style="font-size:0.85rem;">No leave requests yet.</p>
+    {% endif %}
+</div>
+{% endblock %}

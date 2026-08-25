@@ -1,0 +1,158 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Employees — Cityscope Admin{% endblock %}
+
+{% block content %}
+<style>
+    .view-status-btn {
+        transition: all 0.2s ease;
+    }
+    .view-status-btn:hover {
+        background-color: var(--accent) !important;
+        color: white !important;
+        border-color: var(--accent) !important;
+    }
+</style>
+<div class="page-header" style="display: flex; justify-content: space-between; align-items: center;">
+    <h2>Employees</h2>
+    <button class="btn btn-primary" onclick="openAddModal()">+ Add Employee</button>
+</div>
+
+<!-- Add Employee Form Modal -->
+<div class="modal-overlay" id="employeeModal">
+    <div class="modal-content">
+        <div class="card" style="margin-bottom: 0; border: none; box-shadow: none;">
+            <div class="card-title" style="display: flex; justify-content: space-between;">
+                <span>Add New Employee</span>
+                <span style="cursor: pointer; font-size: 1.2rem; color: var(--text-muted);" onclick="closeModal()">✕</span>
+            </div>
+
+    {% if success %}
+    <div class="alert-success">{{ success }}</div>
+    {% endif %}
+    {% if error %}
+    <div class="alert-error">{{ error }}</div>
+    {% endif %}
+
+    <form method="POST" action="{{ url_for('admin_add_employee') }}">
+        <div class="d-flex gap-3 mb-3 form-row-custom">
+            <div style="flex:1;">
+                <label class="form-label" style="font-size:0.85rem; font-weight:600;">Full Name</label>
+                <input type="text" class="form-control" name="name" required placeholder="John Doe"
+                    value="{{ request.form.get('name', '') }}">
+            </div>
+            <div style="flex:1;">
+                <label class="form-label" style="font-size:0.85rem; font-weight:600;">Email</label>
+                <input type="email" class="form-control" name="email" required placeholder="john@cityscope.in"
+                    value="{{ request.form.get('email', '') }}">
+            </div>
+        </div>
+        <div class="d-flex gap-3 mb-3 form-row-custom">
+            <div style="flex:1;">
+                <label class="form-label" style="font-size:0.85rem; font-weight:600;">Password</label>
+                <input type="text" class="form-control" name="password" required placeholder="Initial password">
+            </div>
+            <div style="flex:1;">
+                <label class="form-label" style="font-size:0.85rem; font-weight:600;">Monthly Salary ₹</label>
+                <input type="number" class="form-control" name="salary" required min="0" step="1"
+                    value="{{ request.form.get('salary', '') }}">
+            </div>
+        </div>
+        <div class="d-flex gap-3 mb-3 form-row-custom">
+            <div style="flex:1;">
+                <label class="form-label" style="font-size:0.85rem; font-weight:600;">Team Type</label>
+                <select class="form-select" name="team_type" required>
+                    <option value="" disabled selected>— Select Team —</option>
+                    <option value="CORE_TEAM" {% if request.form.get('team_type')=='CORE_TEAM' %}selected{% endif %}>
+                        Core Team (10x target, 30% commission)
+                    </option>
+                    <option value="NORMAL_TEAM" {% if request.form.get('team_type')=='NORMAL_TEAM' %}selected{% endif
+                        %}>
+                        Normal Team (7x target, 20% commission)
+                    </option>
+                    <option value="RENT_TEAM" {% if request.form.get('team_type')=='RENT_TEAM' %}selected{% endif %}>
+                        Rent Team (5x target, 20% commission)
+                    </option>
+                </select>
+            </div>
+            <div style="flex:1;"></div>
+        </div>
+        <div style="text-align: right; margin-top: 16px;">
+            <button type="button" class="btn btn-secondary" onclick="closeModal()" style="margin-right: 8px;">Cancel</button>
+            <button type="submit" class="btn btn-primary">Add Employee</button>
+        </div>
+    </form>
+        </div>
+    </div>
+</div>
+
+<!-- All Employees Table -->
+<div class="card">
+    <div class="card-title">All Employees ({{ employees|length }})</div>
+    {% if employees|length > 0 %}
+    <div class="table-responsive">
+        <table class="table mb-0">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Salary</th>
+                    <th>Monthly Target</th>
+                    <th>Joined</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for emp in employees %}
+                <tr>
+                    <td>{{ loop.index }}</td>
+                    <td>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <a href="{{ url_for('admin_employee_detail', id=emp.id) }}" style="color: var(--primary); text-decoration: none;"><strong>{{ emp.name }}</strong></a>
+                            {% if emp.team_type == 'CORE_TEAM' %}
+                                <span style="background-color: #fef08a; color: #854d0e; padding: 2px 8px; border-radius: 12px; font-size: 0.7rem; font-weight: 600; white-space: nowrap;">{{ emp.team_label }}</span>
+                            {% elif emp.team_type == 'NORMAL_TEAM' %}
+                                <span style="background-color: #bfdbfe; color: #1e40af; padding: 2px 8px; border-radius: 12px; font-size: 0.7rem; font-weight: 600; white-space: nowrap;">{{ emp.team_label }}</span>
+                            {% elif emp.team_type == 'RENT_TEAM' %}
+                                <span style="background-color: #bbf7d0; color: #166534; padding: 2px 8px; border-radius: 12px; font-size: 0.7rem; font-weight: 600; white-space: nowrap;">{{ emp.team_label }}</span>
+                            {% else %}
+                                <span style="background-color: #e2e8f0; color: #475569; padding: 2px 8px; border-radius: 12px; font-size: 0.7rem; font-weight: 600; white-space: nowrap;">{{ emp.team_label }}</span>
+                            {% endif %}
+                        </div>
+                    </td>
+                    <td>{{ emp.email }}</td>
+                    <td>{{ emp.salary_fmt }}</td>
+                    <td>{{ emp.target_fmt }}</td>
+                    <td>{{ emp.joined }}</td>
+                    <td>
+                        <a href="{{ url_for('admin_employee_detail', id=emp.id) }}" class="btn btn-secondary view-status-btn" style="padding: 4px 12px; font-size: 0.8rem; border-radius: 6px; text-decoration: none;">View Status</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p class="text-muted-custom" style="font-size:0.85rem;">No employees added yet.</p>
+    {% endif %}
+</div>
+
+<script>
+function openAddModal() {
+    document.getElementById('employeeModal').classList.add('open');
+}
+
+function closeModal() {
+    document.getElementById('employeeModal').classList.remove('open');
+}
+
+// Close modal when clicking outside of it
+window.onclick = function(event) {
+    var modal = document.getElementById('employeeModal');
+    if (event.target == modal) {
+        closeModal();
+    }
+}
+</script>
+{% endblock %}

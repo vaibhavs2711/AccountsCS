@@ -1,0 +1,185 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard — Cityscope{% endblock %}
+
+{% block body %}
+<!-- Top Nav -->
+<div class="topnav">
+    <div class="brand">City<span>scope</span></div>
+    <div class="nav-right">
+        <span class="user-name">{{ employee.name }}</span>
+        <form method="POST" action="{{ url_for('logout') }}" style="margin:0;">
+            <button type="submit" class="logout-btn">Logout</button>
+        </form>
+    </div>
+</div>
+
+<div class="emp-container">
+
+    <!-- 1. Employee Info Card -->
+    <div class="card emp-info-card">
+        <div class="emp-name">{{ employee.name }}</div>
+        <div class="emp-meta">{{ team_label }} | {{ salary_fmt }}</div>
+        <div class="emp-target-info">
+            Target Multiplier: {{ multiplier }}x | Commission Rate: {{ commission_rate }}%
+        </div>
+    </div>
+
+    <!-- 2. Commission Summary -->
+    <div class="comm-grid" style="margin-bottom:16px;">
+        <div class="comm-card">
+            <div class="comm-value warning">{{ pending_commission }}</div>
+            <div class="comm-label">Commission Pending</div>
+        </div>
+        <div class="comm-card">
+            <div class="comm-value success">{{ received_commission }}</div>
+            <div class="comm-label">Commission Received</div>
+        </div>
+    </div>
+
+    <!-- 3. Monthly Target -->
+    <div class="card">
+        <div class="card-title">{{ current_month_name }} {{ current_year }} — Monthly Target</div>
+        <div class="target-row">
+            <span>Business Done: <strong>{{ monthly_business_fmt }}</strong></span>
+            <span>Target: <strong>{{ monthly_target_fmt }}</strong></span>
+        </div>
+        <div class="progress-track">
+            <div class="progress-fill"
+                 style="width:{{ [monthly_pct, 100]|min }}%; background:{{ monthly_color }};"></div>
+        </div>
+        <div class="target-status {% if monthly_pct >= 100 %}achieved{% endif %}">
+            {% if monthly_pct >= 100 %}
+                ✅ Monthly target achieved!
+            {% else %}
+                {{ monthly_pct }}% completed — {{ monthly_remaining }} remaining
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- 4. Quarterly Target -->
+    <div class="card">
+        <div class="card-title">Q{{ current_quarter }} {{ fy_label }} — Quarterly Target</div>
+        <div class="target-row">
+            <span>Business Done: <strong>{{ quarterly_business_fmt }}</strong></span>
+            <span>Target: <strong>{{ quarterly_target_fmt }}</strong></span>
+        </div>
+        <div class="progress-track">
+            <div class="progress-fill"
+                 style="width:{{ [quarterly_pct, 100]|min }}%; background:{{ quarterly_color }};"></div>
+        </div>
+        <div class="target-status {% if quarterly_pct >= 100 %}achieved{% endif %}">
+            {% if quarterly_pct >= 100 %}
+                ✅ Quarterly target achieved!
+            {% else %}
+                {{ quarterly_pct }}% completed — {{ quarterly_remaining }} remaining
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- 5. Monthly Leaderboard -->
+    <div class="card">
+        <div class="card-title">🏆 Monthly Leaderboard</div>
+        {% if leaderboard|length > 0 %}
+            {% for entry in leaderboard %}
+            <div class="leaderboard-item {% if entry.id == employee.id %}highlight{% endif %}">
+                <span class="lb-rank {% if loop.index == 1 %}gold{% elif loop.index == 2 %}silver{% elif loop.index == 3 %}bronze{% endif %}">
+                    #{{ loop.index }}
+                </span>
+                <span class="lb-name">
+                    {{ entry.name }}
+                    {% if entry.id == employee.id %}
+                        <span class="lb-you">(You)</span>
+                    {% endif %}
+                </span>
+                <span class="lb-pct" style="color:{{ entry.color }};">{{ entry.percentage }}%</span>
+            </div>
+            {% endfor %}
+        {% else %}
+            <p class="text-muted-custom" style="font-size:0.85rem; padding:8px 0;">No data yet.</p>
+        {% endif %}
+    </div>
+
+    <!-- 6. My Transactions -->
+    <div class="card">
+        <div class="card-title">My Transactions</div>
+        {% if transactions|length > 0 %}
+            {% for t in transactions %}
+            <div class="txn-item">
+                <div class="txn-header">
+                    <span class="txn-prop">{{ t.property_name }}</span>
+                    {% if t.payment_status == 'DONE' %}
+                        <span class="badge-done">✓ Paid</span>
+                    {% else %}
+                        <span class="badge-pending">⏳ Pending</span>
+                    {% endif %}
+                </div>
+                <div class="txn-meta">
+                    {{ t.property_id }} | {{ month_names[t.month] }} {{ t.year }}
+                </div>
+                <div class="txn-amounts">
+                    Deal: {{ format_inr(t.cityscope_commission) }} |
+                    Your Commission: <strong>{{ format_inr(t.employee_commission) }}</strong>
+                    {% if t.gst_applied %}
+                        <span class="gst-note">(GST applied)</span>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <p class="text-muted-custom" style="font-size:0.85rem; padding:8px 0;">No transactions yet.</p>
+        {% endif %}
+    </div>
+
+    <!-- 7. Apply for Leave -->
+    <div class="card">
+        <div class="card-title">Apply for Leave</div>
+
+        {% if leave_success %}
+        <div class="alert-success">{{ leave_success }}</div>
+        {% endif %}
+        {% if leave_error %}
+        <div class="alert-error">{{ leave_error }}</div>
+        {% endif %}
+
+        <form method="POST" action="{{ url_for('employee_apply_leave') }}">
+            <div class="mb-3">
+                <label class="form-label" style="font-size:0.85rem; font-weight:600;">Date of Leave</label>
+                <input type="date" class="form-control" name="date_of_leave" required
+                       min="{{ tomorrow }}">
+            </div>
+            <div class="mb-3">
+                <label class="form-label" style="font-size:0.85rem; font-weight:600;">Reason (optional)</label>
+                <textarea class="form-control" name="reason" rows="2"
+                          placeholder="e.g. personal work"></textarea>
+            </div>
+            <button type="submit" class="btn btn-primary w-100">Apply for Leave</button>
+        </form>
+    </div>
+
+    <!-- 8. My Leave Requests -->
+    {% if leave_requests|length > 0 %}
+    <div class="card">
+        <div class="card-title">My Leave Requests</div>
+        {% for lr in leave_requests %}
+        <div class="leave-item">
+            <div class="leave-header">
+                <span class="leave-date">{{ lr.date_of_leave.strftime('%d %b %Y') }}</span>
+                {% if lr.status == 'PENDING' %}
+                    <span class="badge-pending">PENDING</span>
+                {% elif lr.status == 'APPROVED' %}
+                    <span class="badge-approved">APPROVED</span>
+                {% else %}
+                    <span class="badge-rejected">REJECTED</span>
+                {% endif %}
+            </div>
+            {% if lr.reason %}
+            <div class="leave-reason">{{ lr.reason }}</div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+</div>
+{% endblock %}

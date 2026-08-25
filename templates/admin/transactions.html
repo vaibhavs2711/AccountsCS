@@ -1,0 +1,410 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Transactions — Cityscope Admin{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h2 style="color:var(--text);">Property Transactions</h2>
+        <div class="page-meta" style="margin-top:4px;">Manage all your property transactions in one place.</div>
+    </div>
+    <button class="btn btn-primary" style="padding:10px 16px; font-weight:600; border-radius:8px;" onclick="openAddModal()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px; margin-bottom:-2px;"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+        Add Transaction
+    </button>
+</div>
+
+<!-- Add Transaction Form Modal -->
+<div class="modal-overlay" id="transactionModal">
+    <div class="modal-content">
+        <div class="card" style="margin-bottom: 0; border: none; box-shadow: none;">
+            <div class="card-title" style="display: flex; justify-content: space-between;">
+                <span id="form-title">Add New Transaction</span>
+                <span style="cursor: pointer; font-size: 1.2rem; color: var(--text-muted);" onclick="closeModal()">✕</span>
+            </div>
+
+    {% if success %}
+    <div class="alert-success">{{ success }}</div>
+    {% endif %}
+    {% if error %}
+    <div class="alert-error">{{ error }}</div>
+    {% endif %}
+
+    <form id="transaction-form" method="POST" action="{{ url_for('admin_add_transaction') }}">
+        <input type="hidden" name="transaction_id" id="transaction_id" value="">
+        <div class="d-flex gap-3 mb-3 form-row-custom">
+            <div style="flex:1;">
+                <label class="form-label" style="font-size:0.85rem; font-weight:600;">Employee</label>
+                <input type="hidden" name="employee_id" id="hidden_employee_id">
+                <div class="custom-select-wrapper" style="position: relative;">
+                    <div class="form-control" id="custom-select-display" style="cursor: pointer; display: flex; align-items: center; justify-content: space-between;" onclick="toggleEmpDropdown(event)">
+                        <span id="selected-employee-text" style="color: var(--text-muted);">— Select Employee —</span>
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+                    </div>
+                    <div id="employee-options" style="display: none; position: absolute; top: 100%; left: 0; right: 0; background: #fff; border: 1px solid #e2e8f0; border-radius: 6px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); z-index: 50; max-height: 200px; overflow-y: auto; margin-top: 4px;">
+                        {% for emp in employees %}
+                        {% set bg = '#e2e8f0' %}
+                        {% set color = '#475569' %}
+                        {% set label = emp.team_type|replace('_', ' ')|title %}
+                        {% if emp.team_type == 'CORE_TEAM' %}
+                            {% set bg = '#fef08a' %}{% set color = '#854d0e' %}
+                        {% elif emp.team_type == 'NORMAL_TEAM' %}
+                            {% set bg = '#bfdbfe' %}{% set color = '#1e40af' %}
+                        {% elif emp.team_type == 'RENT_TEAM' %}
+                            {% set bg = '#bbf7d0' %}{% set color = '#166534' %}
+                        {% endif %}
+                        <div class="emp-option" style="padding: 10px 12px; cursor: pointer; border-bottom: 1px solid #f1f5f9; display: flex; align-items: center; gap: 8px;" onclick="selectEmployee('{{ emp.id }}', '{{ emp.name }}', '{{ bg }}', '{{ color }}', '{{ label }}')" onmouseover="this.style.backgroundColor='#f8fafc'" onmouseout="this.style.backgroundColor='transparent'">
+                            <strong>{{ emp.name }}</strong>
+                            <span style="background-color: {{ bg }}; color: {{ color }}; padding: 2px 8px; border-radius: 12px; font-size: 0.7rem; font-weight: 600;">{{ label }}</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            <div style="flex:1;">
+                <label class="form-label" style="font-size:0.85rem; font-weight:600;">Property ID</label>
+                <input type="text" class="form-control" name="property_id" required placeholder="CSID-2025-001"
+                    value="{{ request.form.get('property_id', '') }}">
+            </div>
+        </div>
+        <div class="d-flex gap-3 mb-3 form-row-custom">
+            <div style="flex:1;">
+                <label class="form-label" style="font-size:0.85rem; font-weight:600;">Property Name</label>
+                <input type="text" class="form-control" name="property_name" required
+                    value="{{ request.form.get('property_name', '') }}">
+            </div>
+            <div style="flex:1;">
+                <label class="form-label" style="font-size:0.85rem; font-weight:600;">Transaction Date</label>
+                <input type="date" class="form-control" name="transaction_date" required
+                    value="{{ request.form.get('transaction_date', '') }}">
+            </div>
+        </div>
+        <div class="d-flex gap-3 mb-3 form-row-custom">
+            <div style="flex:1;">
+                <label class="form-label" style="font-size:0.85rem; font-weight:600;">Total Company Commission ₹</label>
+                <input type="number" class="form-control" name="cityscope_commission" required min="0" step="1"
+                    value="{{ request.form.get('cityscope_commission', '') }}" readonly style="background-color: #f1f5f9; cursor: not-allowed;">
+            </div>
+            <div style="flex:1;">
+                <div class="d-flex gap-3 form-row-custom">
+                    <div style="flex:1;">
+                        <label class="form-label" style="font-size:0.85rem; font-weight:600;">Buyer Commission ₹</label>
+                        <input type="number" class="form-control" name="buyer_commission_amount" min="0" step="1"
+                            value="{{ request.form.get('buyer_commission_amount', '') }}" oninput="updateTotalCommission()">
+                    </div>
+                    <div style="flex:1;">
+                        <label class="form-label" style="font-size:0.85rem; font-weight:600;">Seller Commission
+                            ₹</label>
+                        <input type="number" class="form-control" name="seller_commission_amount" min="0" step="1"
+                            value="{{ request.form.get('seller_commission_amount', '') }}" oninput="updateTotalCommission()">
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="mb-3">
+            <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="gst_applied" name="gst_applied" value="1" {% if
+                    request.form.get('gst_applied') %}checked{% endif %}>
+                <label class="form-check-label" for="gst_applied" style="font-size:0.85rem;">
+                    Apply GST (6% deducted from Total Company Commission before employee share is calculated)
+                </label>
+            </div>
+        </div>
+
+        <div class="alert-info">
+            <strong>How commission is calculated:</strong><br>
+            If GST is checked: Net Commission = Total Company Commission − 6%<br>
+            Employee Share = Net Commission × team rate (Core: 30%, Normal/Rent: 20%)
+        </div>
+
+        <div style="text-align: right; margin-top: 16px;">
+            <button type="button" class="btn btn-secondary" onclick="closeModal()" style="margin-right: 8px;">Cancel</button>
+            <button type="submit" class="btn btn-primary" id="form-submit-btn">Add Transaction</button>
+        </div>
+    </form>
+        </div>
+    </div>
+</div>
+
+<!-- All Transactions Table -->
+<div class="card">
+    <div class="card-title" style="display: flex; justify-content: space-between; align-items: center;">
+        <span style="white-space: nowrap;">All Transactions ({{ transactions|length }})</span>
+        
+        <div style="flex: 1; max-width: 350px; margin: 0 16px; position: relative;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%);"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+            <input type="text" id="transactionSearch" placeholder="Search by CSID or Employee..." 
+                   class="form-control" style="border-radius: 8px; font-size: 0.85rem; padding-left: 36px; padding-block: 6px;"
+                   onkeyup="filterTransactions()">
+        </div>
+
+        <form method="GET" action="{{ url_for('admin_transactions') }}" style="display: flex; align-items: center; gap: 8px;">
+            <label for="sort" style="font-size: 0.85rem; font-weight: 600; color: var(--text-muted); margin: 0; white-space: nowrap;">Sort by:</label>
+            <select name="sort" id="sort" class="form-select" style="width: auto; padding-block: 4px; font-size: 0.85rem;" onchange="this.form.submit()">
+                <option value="added" {% if current_sort == 'added' %}selected{% endif %}>Latest Added</option>
+                <option value="date" {% if current_sort == 'date' %}selected{% endif %}>Date Wise</option>
+                <option value="updated" {% if current_sort == 'updated' %}selected{% endif %}>Latest Updated</option>
+            </select>
+        </form>
+    </div>
+    {% if transactions|length > 0 %}
+    <div class="table-responsive">
+        <table class="table mb-0" id="transactionsTable">
+            <thead>
+                <tr>
+                    <th style="white-space: nowrap;">Date</th>
+                    <th style="max-width: 150px;">Property</th>
+                    <th style="white-space: nowrap;">CSID</th>
+                    <th style="white-space: nowrap;">Employee</th>
+                    <th>GST</th>
+                    <th style="white-space: nowrap;">Net Commission</th>
+                    <th style="white-space: nowrap;">Emp. Share <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-bottom:-2px; opacity:0.6;"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg></th>
+                    <th style="white-space: nowrap;">Buyer ₹</th>
+                    <th style="white-space: nowrap;">Seller ₹</th>
+                    <th>Status</th>
+                    <th style="white-space: nowrap;">Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for t in transactions %}
+                <tr>
+                    <td style="color:var(--text-muted); white-space: nowrap;">{{ t.transaction_date.strftime('%d %b %Y') if t.transaction_date else '—' }}</td>
+                    <td style="max-width: 150px;" class="custom-tooltip" data-title="{{ t.property_name }}">
+                        <div style="display:flex; align-items:center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                            <strong style="color:var(--primary); font-size:0.8rem;">{{ t.property_name }}</strong>
+                        </div>
+                    </td>
+                    <td style="color:var(--text-muted); font-size:0.75rem; white-space: nowrap;">{{ t.property_id }}</td>
+                    <td style="white-space: nowrap;">
+                        <div style="display:flex; align-items:center;">
+                            <div class="avatar-circle">
+                                {{ t.employee_name[0]|upper if t.employee_name else '?' }}
+                            </div>
+                            <span style="font-size:0.8rem;">{{ t.employee_name }}</span>
+                        </div>
+                    </td>
+                    <td>
+                        {% if t.gst_applied %}
+                        Yes <span class="text-warning-custom" style="font-size:0.75rem;">-6%</span>
+                        {% else %}
+                        No
+                        {% endif %}
+                    </td>
+                    <td style="white-space: nowrap;">{{ format_inr(t.net_commission) }}</td>
+                    <td style="white-space: nowrap;">
+                        {% set commission_percent = 30 if t.team_type == 'CORE_TEAM' else 20 %}
+                        <strong class="text-primary-custom">{{ format_inr(t.employee_commission) }}</strong>
+                        <div style="margin-top: 4px;">
+                            <span class="badge-rejected" style="display: inline-block; white-space: nowrap; font-size:0.7rem; padding: 2px 6px; border: 1px solid var(--danger);">{{ commission_percent }}%</span>
+                        </div>
+                    </td>
+                    <td style="white-space: nowrap;">{{ format_inr(t.buyer_commission_amount) if t.buyer_commission_amount else '—' }}</td>
+                    <td style="white-space: nowrap;">{{ format_inr(t.seller_commission_amount) if t.seller_commission_amount else '—' }}</td>
+                    <td style="white-space: nowrap;">
+                        {% if t.payment_status == 'PENDING' %}
+                        <span class="status-badge pending">PENDING</span>
+                        {% else %}
+                        <span class="status-badge done">DONE</span>
+                        {% endif %}
+                    </td>
+                    <td style="white-space: nowrap;">
+                        <div style="display:flex; align-items:center; gap:8px; flex-wrap: nowrap;">
+                            <button type="button" class="btn-primary-sm" style="background:#0f172a; border-radius:20px; padding:4px 14px; white-space: nowrap; flex-shrink: 0; height: auto; min-width: max-content;" onclick='editTransaction({{ t.id }}, {{ t.employee_id }}, "{{ t.property_id|replace('"', '\\"') }}", "{{ t.property_name|replace('"', '\\"') }}", "{{ t.transaction_date.strftime('%Y-%m-%d') if t.transaction_date else '' }}", {{ t.cityscope_commission }}, {{ t.buyer_commission_amount or 0 }}, {{ t.seller_commission_amount or 0 }}, {{ 1 if t.gst_applied else 0 }})'>Edit</button>
+                            <div class="dropdown-wrapper" style="position:relative;">
+                                <span class="action-menu" onclick="toggleDropdown(this)" style="flex-shrink:0; cursor:pointer;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"></circle><circle cx="12" cy="5" r="1"></circle><circle cx="12" cy="19" r="1"></circle></svg></span>
+                                <div class="dropdown-menu-custom" style="display:none; position:absolute; right:0; top:100%; background:#fff; border:1px solid #eee; border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,0.1); z-index:100; min-width:140px; padding:4px 0;">
+                                    {% if t.payment_status == 'PENDING' %}
+                                    <form method="POST" action="{{ url_for('admin_mark_paid', id=t.id) }}" style="margin:0;">
+                                        <button type="submit" style="width:100%; text-align:left; background:none; border:none; padding:8px 16px; font-size:0.8rem; cursor:pointer; color:var(--text); display:flex; align-items:center; gap:8px;">
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                                            Mark Paid
+                                        </button>
+                                    </form>
+                                    {% endif %}
+                                    <button type="button" onclick="openDeleteModal({{ t.id }})" style="width:100%; text-align:left; background:none; border:none; padding:8px 16px; font-size:0.8rem; cursor:pointer; color:var(--danger); display:flex; align-items:center; gap:8px;">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"></path><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                                        Delete
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        
+        <div class="pagination-footer">
+            <div>Showing 1 to {{ transactions|length }} of {{ transactions|length }} transactions</div>
+            <div class="pagination-controls">
+                <button type="button"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"></polyline></svg></button>
+                <button type="button" class="active">1</button>
+                <button type="button"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg></button>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <p class="text-muted-custom" style="font-size:0.85rem;">No transactions added yet.</p>
+    {% endif %}
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal-overlay" id="deleteModal">
+    <div class="modal-content" style="max-width: 400px; text-align: center; padding: 24px;">
+        <h3 style="margin-bottom: 12px; color:var(--text);">Delete Transaction</h3>
+        <p style="margin-bottom: 24px; color: var(--text-muted); font-size: 0.9rem;">Are you sure you want to delete this transaction? This action cannot be undone.</p>
+        <div style="display:flex; gap: 12px; justify-content: center;">
+            <button type="button" class="btn" style="background:#f1f5f9; color:#475569; padding:8px 24px; border-radius:8px; border:none; cursor:pointer; font-weight:600;" onclick="closeDeleteModal()">Cancel</button>
+            <form id="confirmDeleteForm" method="POST" action="" style="margin:0;">
+                <button type="submit" class="btn" style="background:var(--danger); color:#fff; padding:8px 24px; border-radius:8px; border:none; cursor:pointer; font-weight:600;">Delete</button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+var employeeData = {
+    {% for emp in employees %}
+        {% set bg = '#e2e8f0' %}{% set color = '#475569' %}
+        {% set label = emp.team_type|replace('_', ' ')|title %}
+        {% if emp.team_type == 'CORE_TEAM' %}{% set bg = '#fef08a' %}{% set color = '#854d0e' %}
+        {% elif emp.team_type == 'NORMAL_TEAM' %}{% set bg = '#bfdbfe' %}{% set color = '#1e40af' %}
+        {% elif emp.team_type == 'RENT_TEAM' %}{% set bg = '#bbf7d0' %}{% set color = '#166534' %}{% endif %}
+        "{{ emp.id }}": { name: "{{ emp.name }}", bg: "{{ bg }}", color: "{{ color }}", label: "{{ label }}" },
+    {% endfor %}
+};
+
+function toggleEmpDropdown(e) {
+    var opts = document.getElementById('employee-options');
+    opts.style.display = opts.style.display === 'none' ? 'block' : 'none';
+    if(e) e.stopPropagation();
+}
+
+function selectEmployee(id, name, bg, color, label) {
+    document.getElementById('hidden_employee_id').value = id;
+    document.getElementById('selected-employee-text').innerHTML = `<strong>${name}</strong> <span style="background-color: ${bg}; color: ${color}; padding: 2px 8px; border-radius: 12px; font-size: 0.7rem; font-weight: 600;">${label}</span>`;
+    document.getElementById('employee-options').style.display = 'none';
+}
+
+window.addEventListener('click', function(event) {
+    var wrapper = document.querySelector('.custom-select-wrapper');
+    if (wrapper && !wrapper.contains(event.target)) {
+        var opts = document.getElementById('employee-options');
+        if(opts) opts.style.display = 'none';
+    }
+});
+
+function openAddModal() {
+    document.getElementById('form-title').innerText = 'Add New Transaction';
+    document.getElementById('transaction_id').value = '';
+    document.getElementById('transaction-form').reset();
+    
+    // Reset custom employee dropdown
+    document.getElementById('hidden_employee_id').value = '';
+    document.getElementById('selected-employee-text').innerHTML = `<span style="color: var(--text-muted);">— Select Employee —</span>`;
+    
+    // Set default date to today
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    document.querySelector('input[name="transaction_date"]').value = `${yyyy}-${mm}-${dd}`;
+    
+    document.getElementById('form-submit-btn').innerText = 'Add Transaction';
+    document.getElementById('transactionModal').classList.add('open');
+}
+
+function updateTotalCommission() {
+    var buyer = parseFloat(document.querySelector('input[name="buyer_commission_amount"]').value) || 0;
+    var seller = parseFloat(document.querySelector('input[name="seller_commission_amount"]').value) || 0;
+    document.querySelector('input[name="cityscope_commission"]').value = buyer + seller;
+}
+
+
+
+function editTransaction(id, employee_id, property_id, property_name, transaction_date, cs_commission, buyer_commission, seller_commission, gst_applied) {
+    document.getElementById('form-title').innerText = 'Edit Transaction';
+    document.getElementById('transaction_id').value = id;
+    
+    document.getElementById('hidden_employee_id').value = employee_id;
+    if (employeeData[employee_id]) {
+        var d = employeeData[employee_id];
+        document.getElementById('selected-employee-text').innerHTML = `<strong>${d.name}</strong> <span style="background-color: ${d.bg}; color: ${d.color}; padding: 2px 8px; border-radius: 12px; font-size: 0.7rem; font-weight: 600;">${d.label}</span>`;
+    }
+    
+    document.querySelector('input[name="property_id"]').value = property_id;
+    document.querySelector('input[name="property_name"]').value = property_name;
+    document.querySelector('input[name="transaction_date"]').value = transaction_date;
+    document.querySelector('input[name="cityscope_commission"]').value = cs_commission;
+    document.querySelector('input[name="buyer_commission_amount"]').value = buyer_commission || '';
+    document.querySelector('input[name="seller_commission_amount"]').value = seller_commission || '';
+    document.querySelector('input[name="gst_applied"]').checked = (gst_applied === 1);
+    
+    document.getElementById('form-submit-btn').innerText = 'Save Changes';
+    document.getElementById('transactionModal').classList.add('open');
+}
+
+function closeModal() {
+    document.getElementById('transactionModal').classList.remove('open');
+}
+
+// Close modal when clicking outside of it
+window.onclick = function(event) {
+    var modal = document.getElementById('transactionModal');
+    var deleteModal = document.getElementById('deleteModal');
+    if (event.target == modal) {
+        closeModal();
+    }
+    if (event.target == deleteModal) {
+        closeDeleteModal();
+    }
+}
+
+function openDeleteModal(transactionId) {
+    document.getElementById('deleteModal').classList.add('open');
+    document.getElementById('confirmDeleteForm').action = '/admin/transactions/' + transactionId + '/delete';
+}
+
+function closeDeleteModal() {
+    document.getElementById('deleteModal').classList.remove('open');
+}
+
+function toggleDropdown(element) {
+    // close all other dropdowns
+    document.querySelectorAll('.dropdown-menu-custom').forEach(m => {
+        if (m !== element.nextElementSibling) m.style.display = 'none';
+    });
+    const menu = element.nextElementSibling;
+    menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+}
+
+document.addEventListener('click', function(e) {
+    if (!e.target.closest('.dropdown-wrapper')) {
+        document.querySelectorAll('.dropdown-menu-custom').forEach(m => {
+            m.style.display = 'none';
+        });
+    }
+});
+
+function filterTransactions() {
+    var input = document.getElementById("transactionSearch");
+    var filter = input.value.toLowerCase();
+    var table = document.getElementById("transactionsTable");
+    var tr = table.getElementsByTagName("tr");
+
+    for (var i = 1; i < tr.length; i++) {
+        var tdCsid = tr[i].getElementsByTagName("td")[2];
+        var tdEmp = tr[i].getElementsByTagName("td")[3];
+        if (tdCsid && tdEmp) {
+            var txtValueCsid = tdCsid.textContent || tdCsid.innerText;
+            var txtValueEmp = tdEmp.textContent || tdEmp.innerText;
+            if (txtValueCsid.toLowerCase().indexOf(filter) > -1 || txtValueEmp.toLowerCase().indexOf(filter) > -1) {
+                tr[i].style.display = "";
+            } else {
+                tr[i].style.display = "none";
+            }
+        }
+    }
+}
+</script>
+{% endblock %}

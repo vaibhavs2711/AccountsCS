@@ -1,0 +1,157 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Dashboard — Cityscope Admin{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h2>Dashboard Overview</h2>
+    <span class="page-meta">{{ current_month_name }} {{ current_year }}</span>
+</div>
+
+<!-- Stat Cards -->
+<style>
+    .view-status-btn {
+        transition: all 0.2s ease;
+    }
+    .view-status-btn:hover {
+        background-color: var(--accent) !important;
+        color: white !important;
+        border-color: var(--accent) !important;
+    }
+</style>
+<div class="stat-grid">
+    <div class="stat-card">
+        <div class="stat-value">{{ employee_count }}</div>
+        <div class="stat-label">Total Employees</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value">{{ transaction_count }}</div>
+        <div class="stat-label">Total Transactions</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value warning">{{ pending_commission }}</div>
+        <div class="stat-label">Commission Pending</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value warning">{{ pending_leaves }}</div>
+        <div class="stat-label">Pending Leave Requests</div>
+    </div>
+</div>
+
+<!-- Employee Performance Leaderboard -->
+<div class="card">
+    <div class="card-title">This Month — Employee Performance</div>
+    {% if leaderboard|length > 0 %}
+    <div class="table-responsive">
+        <table class="table mb-0">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Employee</th>
+                    <th>Team</th>
+                    <th>Business Done</th>
+                    <th>Monthly Target</th>
+                    <th style="min-width:160px;">Progress</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for emp in leaderboard %}
+                <tr data-emp-color="{{ emp.color }}" data-emp-pct="{{ [emp.percentage, 100] | min }}">
+                    <td>{{ loop.index }}</td>
+                    <td><strong>{{ emp.name }}</strong></td>
+                    <td>{{ emp.team_label }}</td>
+                    <td>{{ emp.business_done_fmt }}</td>
+                    <td>{{ emp.target_fmt }}</td>
+                    <td>
+                        <div class="d-flex align-items-center gap-2">
+                            <div class="progress-track thin" style="flex:1;">
+                                <div class="progress-fill"></div>
+                            </div>
+                            <span class="emp-pct-label">
+                                {{ emp.percentage }}%
+                            </span>
+                        </div>
+                    </td>
+                    <td>
+                        <a href="{{ url_for('admin_employee_detail', id=emp.id) }}" class="btn btn-secondary view-status-btn" style="padding: 4px 12px; font-size: 0.8rem; border-radius: 6px; text-decoration: none;">View Status</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p class="text-muted-custom" style="font-size:0.85rem;">No employees found.</p>
+    {% endif %}
+</div>
+
+<!-- Recent Transactions -->
+<div class="card">
+    <div class="card-title">Recent Transactions This Month</div>
+    {% if recent_transactions|length > 0 %}
+    <div class="table-responsive">
+        <table class="table mb-0">
+            <thead>
+                <tr>
+                    <th>Property</th>
+                    <th>ID</th>
+                    <th>Employee</th>
+                    <th>Deal Amount</th>
+                    <th>Emp. Commission</th>
+                    <th>GST</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for t in recent_transactions %}
+                <tr>
+                    <td><strong>{{ t.property_name }}</strong></td>
+                    <td>{{ t.property_id }}</td>
+                    <td>{{ t.employee_name }}</td>
+                    <td>{{ format_inr(t.cityscope_commission) }}</td>
+                    <td>{{ format_inr(t.employee_commission) }}</td>
+                    <td>
+                        {% if t.gst_applied %}
+                            Yes <span class="text-warning-custom" style="font-size:0.75rem;">-6%</span>
+                        {% else %}
+                            No
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if t.payment_status == 'PENDING' %}
+                            <span class="badge-pending">PENDING</span>
+                        {% else %}
+                            <span class="badge-done">DONE</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p class="text-muted-custom" style="font-size:0.85rem;">No transactions this month.</p>
+    {% endif %}
+</div>
+
+<script>
+document.querySelectorAll('tr[data-emp-color]').forEach(function(row) {
+    var color = row.getAttribute('data-emp-color');
+    var pct = row.getAttribute('data-emp-pct') + '%';
+    var fill = row.querySelector('.progress-fill');
+    if (fill) {
+        fill.style.width = pct;
+        fill.style.background = color;
+    }
+    var label = row.querySelector('.emp-pct-label');
+    if (label) {
+        label.style.fontSize = '0.8rem';
+        label.style.fontWeight = '600';
+        label.style.color = color;
+        label.style.minWidth = '45px';
+        label.style.textAlign = 'right';
+    }
+});
+</script>
+{% endblock %}
