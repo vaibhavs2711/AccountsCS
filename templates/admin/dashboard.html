@@ -46,7 +46,7 @@
             </thead>
             <tbody>
                 {% for emp in leaderboard %}
-                <tr>
+                <tr data-emp-color="{{ emp.color }}" data-emp-pct="{{ [emp.percentage, 100] | min }}">
                     <td>{{ loop.index }}</td>
                     <td><strong>{{ emp.name }}</strong></td>
                     <td>{{ emp.team_label }}</td>
@@ -55,10 +55,9 @@
                     <td>
                         <div class="d-flex align-items-center gap-2">
                             <div class="progress-track thin" style="flex:1;">
-                                <div class="progress-fill"
-                                     style="width:{{ [emp.percentage, 100] | min }}%; background:{{ emp.color }};"></div>
+                                <div class="progress-fill"></div>
                             </div>
-                            <span style="font-size:0.8rem; font-weight:600; color:{{ emp.color }}; min-width:45px; text-align:right;">
+                            <span class="emp-pct-label">
                                 {{ emp.percentage }}%
                             </span>
                         </div>
@@ -121,4 +120,24 @@
     <p class="text-muted-custom" style="font-size:0.85rem;">No transactions this month.</p>
     {% endif %}
 </div>
+
+<script>
+document.querySelectorAll('tr[data-emp-color]').forEach(function(row) {
+    var color = row.getAttribute('data-emp-color');
+    var pct = row.getAttribute('data-emp-pct') + '%';
+    var fill = row.querySelector('.progress-fill');
+    if (fill) {
+        fill.style.width = pct;
+        fill.style.background = color;
+    }
+    var label = row.querySelector('.emp-pct-label');
+    if (label) {
+        label.style.fontSize = '0.8rem';
+        label.style.fontWeight = '600';
+        label.style.color = color;
+        label.style.minWidth = '45px';
+        label.style.textAlign = 'right';
+    }
+});
+</script>
 {% endblock %}
