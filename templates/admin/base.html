@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+
+{% block body %}
+<!-- Mobile hamburger toggle -->
+<button class="sidebar-toggle" onclick="toggleSidebar()">☰</button>
+<div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+
+<!-- Sidebar -->
+<div class="sidebar" id="sidebar">
+    <div class="brand">City<span>scope</span></div>
+    <div class="brand-sub">Admin Panel</div>
+
+    <nav>
+        <a href="{{ url_for('admin_dashboard') }}"
+           class="{% if request.path == '/admin' %}active{% endif %}">
+            📊 Dashboard
+        </a>
+        <a href="{{ url_for('admin_employees') }}"
+           class="{% if '/admin/employees' in request.path %}active{% endif %}">
+            👥 Employees
+        </a>
+        <a href="{{ url_for('admin_transactions') }}"
+           class="{% if '/admin/transactions' in request.path %}active{% endif %}">
+            🏠 Transactions
+        </a>
+        <a href="{{ url_for('admin_leaves') }}"
+           class="{% if '/admin/leaves' in request.path %}active{% endif %}">
+            📅 Leave Requests
+        </a>
+    </nav>
+
+    <div class="sidebar-footer">
+        Logged in as <strong>{{ current_user.name }}</strong>
+        <form method="POST" action="{{ url_for('logout') }}">
+            <button type="submit" class="logout-btn">← Logout</button>
+        </form>
+    </div>
+</div>
+
+<!-- Main content area -->
+<div class="admin-main">
+    {% block content %}{% endblock %}
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+function toggleSidebar() {
+    document.getElementById('sidebar').classList.toggle('open');
+    document.getElementById('sidebarOverlay').classList.toggle('open');
+}
+</script>
+{% endblock %}

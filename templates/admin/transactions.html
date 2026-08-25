@@ -1,0 +1,166 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Transactions — Cityscope Admin{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h2>Property Transactions</h2>
+</div>
+
+<!-- Add Transaction Form -->
+<div class="card">
+    <div class="card-title">Add New Transaction</div>
+
+    {% if success %}
+    <div class="alert-success">{{ success }}</div>
+    {% endif %}
+    {% if error %}
+    <div class="alert-error">{{ error }}</div>
+    {% endif %}
+
+    <form method="POST" action="{{ url_for('admin_add_transaction') }}">
+        <div class="d-flex gap-3 mb-3 form-row-custom">
+            <div style="flex:1;">
+                <label class="form-label" style="font-size:0.85rem; font-weight:600;">Employee</label>
+                <select class="form-select" name="employee_id" required>
+                    <option value="" disabled selected>— Select Employee —</option>
+                    {% for emp in employees %}
+                    <option value="{{ emp.id }}"
+                            {% if request.form.get('employee_id')|string == emp.id|string %}selected{% endif %}>
+                        {{ emp.name }} ({{ emp.team_type|replace('_', ' ') }})
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div style="flex:1;">
+                <label class="form-label" style="font-size:0.85rem; font-weight:600;">Property ID</label>
+                <input type="text" class="form-control" name="property_id" required
+                       placeholder="CSID-2025-001"
+                       value="{{ request.form.get('property_id', '') }}">
+            </div>
+        </div>
+        <div class="d-flex gap-3 mb-3 form-row-custom">
+            <div style="flex:1;">
+                <label class="form-label" style="font-size:0.85rem; font-weight:600;">Property Name</label>
+                <input type="text" class="form-control" name="property_name" required
+                       placeholder="Luxury Villa, Sector 45"
+                       value="{{ request.form.get('property_name', '') }}">
+            </div>
+            <div style="flex:1;">
+                <label class="form-label" style="font-size:0.85rem; font-weight:600;">Total Deal Amount ₹</label>
+                <input type="number" class="form-control" name="total_deal_amount" required min="0" step="1"
+                       placeholder="10000000"
+                       value="{{ request.form.get('total_deal_amount', '') }}">
+            </div>
+        </div>
+        <div class="d-flex gap-3 mb-3 form-row-custom">
+            <div style="flex:1;">
+                <label class="form-label" style="font-size:0.85rem; font-weight:600;">Cityscope Commission ₹</label>
+                <input type="number" class="form-control" name="cityscope_commission" required min="0" step="1"
+                       placeholder="500000"
+                       value="{{ request.form.get('cityscope_commission', '') }}">
+            </div>
+            <div style="flex:1;">
+                <div class="d-flex gap-3 form-row-custom">
+                    <div style="flex:1;">
+                        <label class="form-label" style="font-size:0.85rem; font-weight:600;">Buyer Commission %</label>
+                        <input type="number" class="form-control" name="buyer_commission_percent"
+                               min="0" max="100" step="0.01" value="{{ request.form.get('buyer_commission_percent', '0') }}">
+                    </div>
+                    <div style="flex:1;">
+                        <label class="form-label" style="font-size:0.85rem; font-weight:600;">Seller Commission %</label>
+                        <input type="number" class="form-control" name="seller_commission_percent"
+                               min="0" max="100" step="0.01" value="{{ request.form.get('seller_commission_percent', '0') }}">
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="mb-3">
+            <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="gst_applied" name="gst_applied" value="1"
+                       {% if request.form.get('gst_applied') %}checked{% endif %}>
+                <label class="form-check-label" for="gst_applied" style="font-size:0.85rem;">
+                    Apply GST (6% deducted from Cityscope Commission before employee share is calculated)
+                </label>
+            </div>
+        </div>
+
+        <div class="alert-info">
+            <strong>How commission is calculated:</strong><br>
+            If GST is checked: Net Commission = Cityscope Commission − 6%<br>
+            Employee Share = Net Commission × team rate (Core: 30%, Normal/Rent: 20%)
+        </div>
+
+        <button type="submit" class="btn btn-primary">Add Transaction</button>
+    </form>
+</div>
+
+<!-- All Transactions Table -->
+<div class="card">
+    <div class="card-title">All Transactions ({{ transactions|length }})</div>
+    {% if transactions|length > 0 %}
+    <div class="table-responsive">
+        <table class="table mb-0">
+            <thead>
+                <tr>
+                    <th>Property</th>
+                    <th>CSID</th>
+                    <th>Employee</th>
+                    <th>Month</th>
+                    <th>Deal Amount</th>
+                    <th>CS Commission</th>
+                    <th>GST</th>
+                    <th>Net Commission</th>
+                    <th>Emp. Share</th>
+                    <th>Buyer %</th>
+                    <th>Seller %</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for t in transactions %}
+                <tr>
+                    <td><strong>{{ t.property_name }}</strong></td>
+                    <td>{{ t.property_id }}</td>
+                    <td>{{ t.employee_name }}</td>
+                    <td>{{ month_names[t.month] }} {{ t.year }}</td>
+                    <td>{{ format_inr(t.total_deal_amount) }}</td>
+                    <td>{{ format_inr(t.cityscope_commission) }}</td>
+                    <td>
+                        {% if t.gst_applied %}
+                            Yes <span class="text-warning-custom" style="font-size:0.75rem;">-6%</span>
+                        {% else %}
+                            No
+                        {% endif %}
+                    </td>
+                    <td>{{ format_inr(t.net_commission) }}</td>
+                    <td><strong class="text-primary-custom">{{ format_inr(t.employee_commission) }}</strong></td>
+                    <td>{{ t.buyer_commission_percent }}%</td>
+                    <td>{{ t.seller_commission_percent }}%</td>
+                    <td>
+                        {% if t.payment_status == 'PENDING' %}
+                            <span class="badge-pending">PENDING</span>
+                        {% else %}
+                            <span class="badge-done">DONE</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if t.payment_status == 'PENDING' %}
+                        <form method="POST" action="{{ url_for('admin_mark_paid', id=t.id) }}" style="display:inline;">
+                            <button type="submit" class="btn-success-sm">✓ Mark Paid</button>
+                        </form>
+                        {% else %}
+                            —
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p class="text-muted-custom" style="font-size:0.85rem;">No transactions added yet.</p>
+    {% endif %}
+</div>
+{% endblock %}

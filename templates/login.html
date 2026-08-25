@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+
+{% block title %}Sign In — Cityscope Accounts{% endblock %}
+
+{% block body %}
+<div class="login-page">
+    <div class="login-box">
+        <div class="brand">
+            <h1>City<span>scope</span></h1>
+        </div>
+        <p class="subtitle">Accounts &amp; Commission System</p>
+
+        {% if error %}
+        <div class="alert-error">{{ error }}</div>
+        {% endif %}
+
+        <form method="POST" action="{{ url_for('login') }}">
+            <div class="mb-3">
+                <label for="email">Email</label>
+                <input type="email" class="form-control" id="email" name="email"
+                       placeholder="you@cityscope.in" required
+                       value="{{ request.form.get('email', '') }}">
+            </div>
+            <div class="mb-3">
+                <label for="password">Password</label>
+                <input type="password" class="form-control" id="password" name="password"
+                       placeholder="••••••••" required>
+            </div>
+            <button type="submit" class="btn btn-primary w-100">Sign In</button>
+        </form>
+
+        <p class="footer-text">Contact your administrator to get access.</p>
+    </div>
+</div>
+{% endblock %}

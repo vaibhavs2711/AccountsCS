@@ -1,0 +1,124 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Dashboard — Cityscope Admin{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h2>Dashboard Overview</h2>
+    <span class="page-meta">{{ current_month_name }} {{ current_year }}</span>
+</div>
+
+<!-- Stat Cards -->
+<div class="stat-grid">
+    <div class="stat-card">
+        <div class="stat-value">{{ employee_count }}</div>
+        <div class="stat-label">Total Employees</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value">{{ transaction_count }}</div>
+        <div class="stat-label">Total Transactions</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value warning">{{ pending_commission }}</div>
+        <div class="stat-label">Commission Pending</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value warning">{{ pending_leaves }}</div>
+        <div class="stat-label">Pending Leave Requests</div>
+    </div>
+</div>
+
+<!-- Employee Performance Leaderboard -->
+<div class="card">
+    <div class="card-title">This Month — Employee Performance</div>
+    {% if leaderboard|length > 0 %}
+    <div class="table-responsive">
+        <table class="table mb-0">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Employee</th>
+                    <th>Team</th>
+                    <th>Business Done</th>
+                    <th>Monthly Target</th>
+                    <th style="min-width:160px;">Progress</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for emp in leaderboard %}
+                <tr>
+                    <td>{{ loop.index }}</td>
+                    <td><strong>{{ emp.name }}</strong></td>
+                    <td>{{ emp.team_label }}</td>
+                    <td>{{ emp.business_done_fmt }}</td>
+                    <td>{{ emp.target_fmt }}</td>
+                    <td>
+                        <div class="d-flex align-items-center gap-2">
+                            <div class="progress-track thin" style="flex:1;">
+                                <div class="progress-fill"
+                                     style="width:{{ [emp.percentage, 100] | min }}%; background:{{ emp.color }};"></div>
+                            </div>
+                            <span style="font-size:0.8rem; font-weight:600; color:{{ emp.color }}; min-width:45px; text-align:right;">
+                                {{ emp.percentage }}%
+                            </span>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p class="text-muted-custom" style="font-size:0.85rem;">No employees found.</p>
+    {% endif %}
+</div>
+
+<!-- Recent Transactions -->
+<div class="card">
+    <div class="card-title">Recent Transactions This Month</div>
+    {% if recent_transactions|length > 0 %}
+    <div class="table-responsive">
+        <table class="table mb-0">
+            <thead>
+                <tr>
+                    <th>Property</th>
+                    <th>ID</th>
+                    <th>Employee</th>
+                    <th>Deal Amount</th>
+                    <th>Emp. Commission</th>
+                    <th>GST</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for t in recent_transactions %}
+                <tr>
+                    <td><strong>{{ t.property_name }}</strong></td>
+                    <td>{{ t.property_id }}</td>
+                    <td>{{ t.employee_name }}</td>
+                    <td>{{ format_inr(t.total_deal_amount) }}</td>
+                    <td>{{ format_inr(t.employee_commission) }}</td>
+                    <td>
+                        {% if t.gst_applied %}
+                            Yes <span class="text-warning-custom" style="font-size:0.75rem;">-6%</span>
+                        {% else %}
+                            No
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if t.payment_status == 'PENDING' %}
+                            <span class="badge-pending">PENDING</span>
+                        {% else %}
+                            <span class="badge-done">DONE</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p class="text-muted-custom" style="font-size:0.85rem;">No transactions this month.</p>
+    {% endif %}
+</div>
+{% endblock %}
