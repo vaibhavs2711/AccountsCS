@@ -25,8 +25,8 @@
                 <select class="form-select" name="employee_id" required>
                     <option value="" disabled selected>— Select Employee —</option>
                     {% for emp in employees %}
-                    <option value="{{ emp.id }}"
-                            {% if request.form.get('employee_id')|string == emp.id|string %}selected{% endif %}>
+                    <option value="{{ emp.id }}" {% if request.form.get('employee_id')|string==emp.id|string
+                        %}selected{% endif %}>
                         {{ emp.name }} ({{ emp.team_type|replace('_', ' ') }})
                     </option>
                     {% endfor %}
@@ -34,51 +34,48 @@
             </div>
             <div style="flex:1;">
                 <label class="form-label" style="font-size:0.85rem; font-weight:600;">Property ID</label>
-                <input type="text" class="form-control" name="property_id" required
-                       placeholder="CSID-2025-001"
-                       value="{{ request.form.get('property_id', '') }}">
+                <input type="text" class="form-control" name="property_id" required placeholder="CSID-2025-001"
+                    value="{{ request.form.get('property_id', '') }}">
             </div>
         </div>
         <div class="d-flex gap-3 mb-3 form-row-custom">
             <div style="flex:1;">
                 <label class="form-label" style="font-size:0.85rem; font-weight:600;">Property Name</label>
                 <input type="text" class="form-control" name="property_name" required
-                       placeholder="Luxury Villa, Sector 45"
-                       value="{{ request.form.get('property_name', '') }}">
+                    value="{{ request.form.get('property_name', '') }}">
             </div>
             <div style="flex:1;">
-                <label class="form-label" style="font-size:0.85rem; font-weight:600;">Total Deal Amount ₹</label>
-                <input type="number" class="form-control" name="total_deal_amount" required min="0" step="1"
-                       placeholder="10000000"
-                       value="{{ request.form.get('total_deal_amount', '') }}">
+                <label class="form-label" style="font-size:0.85rem; font-weight:600;">Transaction Date</label>
+                <input type="date" class="form-control" name="transaction_date" required
+                    value="{{ request.form.get('transaction_date', '') }}">
             </div>
         </div>
         <div class="d-flex gap-3 mb-3 form-row-custom">
             <div style="flex:1;">
                 <label class="form-label" style="font-size:0.85rem; font-weight:600;">Cityscope Commission ₹</label>
                 <input type="number" class="form-control" name="cityscope_commission" required min="0" step="1"
-                       placeholder="500000"
-                       value="{{ request.form.get('cityscope_commission', '') }}">
+                    value="{{ request.form.get('cityscope_commission', '') }}">
             </div>
             <div style="flex:1;">
                 <div class="d-flex gap-3 form-row-custom">
                     <div style="flex:1;">
-                        <label class="form-label" style="font-size:0.85rem; font-weight:600;">Buyer Commission %</label>
-                        <input type="number" class="form-control" name="buyer_commission_percent"
-                               min="0" max="100" step="0.01" value="{{ request.form.get('buyer_commission_percent', '0') }}">
+                        <label class="form-label" style="font-size:0.85rem; font-weight:600;">Buyer Commission ₹</label>
+                        <input type="number" class="form-control" name="buyer_commission_amount" min="0" step="1"
+                            value="{{ request.form.get('buyer_commission_amount', '') }}">
                     </div>
                     <div style="flex:1;">
-                        <label class="form-label" style="font-size:0.85rem; font-weight:600;">Seller Commission %</label>
-                        <input type="number" class="form-control" name="seller_commission_percent"
-                               min="0" max="100" step="0.01" value="{{ request.form.get('seller_commission_percent', '0') }}">
+                        <label class="form-label" style="font-size:0.85rem; font-weight:600;">Seller Commission
+                            ₹</label>
+                        <input type="number" class="form-control" name="seller_commission_amount" min="0" step="1"
+                            value="{{ request.form.get('seller_commission_amount', '') }}">
                     </div>
                 </div>
             </div>
         </div>
         <div class="mb-3">
             <div class="form-check">
-                <input class="form-check-input" type="checkbox" id="gst_applied" name="gst_applied" value="1"
-                       {% if request.form.get('gst_applied') %}checked{% endif %}>
+                <input class="form-check-input" type="checkbox" id="gst_applied" name="gst_applied" value="1" {% if
+                    request.form.get('gst_applied') %}checked{% endif %}>
                 <label class="form-check-label" for="gst_applied" style="font-size:0.85rem;">
                     Apply GST (6% deducted from Cityscope Commission before employee share is calculated)
                 </label>
@@ -103,17 +100,17 @@
         <table class="table mb-0">
             <thead>
                 <tr>
+                    <th>Date</th>
                     <th>Property</th>
                     <th>CSID</th>
                     <th>Employee</th>
                     <th>Month</th>
-                    <th>Deal Amount</th>
                     <th>CS Commission</th>
                     <th>GST</th>
                     <th>Net Commission</th>
                     <th>Emp. Share</th>
-                    <th>Buyer %</th>
-                    <th>Seller %</th>
+                    <th>Buyer ₹</th>
+                    <th>Seller ₹</th>
                     <th>Status</th>
                     <th>Action</th>
                 </tr>
@@ -121,28 +118,28 @@
             <tbody>
                 {% for t in transactions %}
                 <tr>
+                    <td>{{ t.transaction_date.strftime('%d %b %Y') if t.transaction_date else '—' }}</td>
                     <td><strong>{{ t.property_name }}</strong></td>
                     <td>{{ t.property_id }}</td>
                     <td>{{ t.employee_name }}</td>
                     <td>{{ month_names[t.month] }} {{ t.year }}</td>
-                    <td>{{ format_inr(t.total_deal_amount) }}</td>
                     <td>{{ format_inr(t.cityscope_commission) }}</td>
                     <td>
                         {% if t.gst_applied %}
-                            Yes <span class="text-warning-custom" style="font-size:0.75rem;">-6%</span>
+                        Yes <span class="text-warning-custom" style="font-size:0.75rem;">-6%</span>
                         {% else %}
-                            No
+                        No
                         {% endif %}
                     </td>
                     <td>{{ format_inr(t.net_commission) }}</td>
                     <td><strong class="text-primary-custom">{{ format_inr(t.employee_commission) }}</strong></td>
-                    <td>{{ t.buyer_commission_percent }}%</td>
-                    <td>{{ t.seller_commission_percent }}%</td>
+                    <td>{{ format_inr(t.buyer_commission_amount) if t.buyer_commission_amount else '—' }}</td>
+                    <td>{{ format_inr(t.seller_commission_amount) if t.seller_commission_amount else '—' }}</td>
                     <td>
                         {% if t.payment_status == 'PENDING' %}
-                            <span class="badge-pending">PENDING</span>
+                        <span class="badge-pending">PENDING</span>
                         {% else %}
-                            <span class="badge-done">DONE</span>
+                        <span class="badge-done">DONE</span>
                         {% endif %}
                     </td>
                     <td>
@@ -151,7 +148,7 @@
                             <button type="submit" class="btn-success-sm">✓ Mark Paid</button>
                         </form>
                         {% else %}
-                            —
+                        —
                         {% endif %}
                     </td>
                 </tr>

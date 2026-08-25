@@ -22,25 +22,24 @@
         <div class="d-flex gap-3 mb-3 form-row-custom">
             <div style="flex:1;">
                 <label class="form-label" style="font-size:0.85rem; font-weight:600;">Full Name</label>
-                <input type="text" class="form-control" name="name" required
-                       placeholder="John Doe" value="{{ request.form.get('name', '') }}">
+                <input type="text" class="form-control" name="name" required placeholder="John Doe"
+                    value="{{ request.form.get('name', '') }}">
             </div>
             <div style="flex:1;">
                 <label class="form-label" style="font-size:0.85rem; font-weight:600;">Email</label>
-                <input type="email" class="form-control" name="email" required
-                       placeholder="john@cityscope.in" value="{{ request.form.get('email', '') }}">
+                <input type="email" class="form-control" name="email" required placeholder="john@cityscope.in"
+                    value="{{ request.form.get('email', '') }}">
             </div>
         </div>
         <div class="d-flex gap-3 mb-3 form-row-custom">
             <div style="flex:1;">
                 <label class="form-label" style="font-size:0.85rem; font-weight:600;">Password</label>
-                <input type="text" class="form-control" name="password" required
-                       placeholder="Initial password">
+                <input type="text" class="form-control" name="password" required placeholder="Initial password">
             </div>
             <div style="flex:1;">
                 <label class="form-label" style="font-size:0.85rem; font-weight:600;">Monthly Salary ₹</label>
                 <input type="number" class="form-control" name="salary" required min="0" step="1"
-                       placeholder="50000" value="{{ request.form.get('salary', '') }}">
+                    value="{{ request.form.get('salary', '') }}">
             </div>
         </div>
         <div class="d-flex gap-3 mb-3 form-row-custom">
@@ -48,13 +47,14 @@
                 <label class="form-label" style="font-size:0.85rem; font-weight:600;">Team Type</label>
                 <select class="form-select" name="team_type" required>
                     <option value="" disabled selected>— Select Team —</option>
-                    <option value="CORE_TEAM" {% if request.form.get('team_type') == 'CORE_TEAM' %}selected{% endif %}>
+                    <option value="CORE_TEAM" {% if request.form.get('team_type')=='CORE_TEAM' %}selected{% endif %}>
                         Core Team (10x target, 30% commission)
                     </option>
-                    <option value="NORMAL_TEAM" {% if request.form.get('team_type') == 'NORMAL_TEAM' %}selected{% endif %}>
+                    <option value="NORMAL_TEAM" {% if request.form.get('team_type')=='NORMAL_TEAM' %}selected{% endif
+                        %}>
                         Normal Team (7x target, 20% commission)
                     </option>
-                    <option value="RENT_TEAM" {% if request.form.get('team_type') == 'RENT_TEAM' %}selected{% endif %}>
+                    <option value="RENT_TEAM" {% if request.form.get('team_type')=='RENT_TEAM' %}selected{% endif %}>
                         Rent Team (5x target, 20% commission)
                     </option>
                 </select>

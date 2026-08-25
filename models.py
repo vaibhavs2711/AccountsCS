@@ -98,19 +98,21 @@ def create_transaction(data: dict):
         with db.cursor() as cur:
             cur.execute(
                 """INSERT INTO transactions
-                   (property_id, property_name, total_deal_amount,
-                    cityscope_commission, buyer_commission_percent,
+                   (property_id, property_name, 
+                    cityscope_commission, buyer_commission_amount,
+                    seller_commission_amount, buyer_commission_percent,
                     seller_commission_percent, gst_applied, net_commission,
-                    employee_commission, payment_status, month, year, quarter,
+                    employee_commission, payment_status, transaction_date, month, year, quarter,
                     employee_id)
-                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
                 (
                     data['property_id'], data['property_name'],
-                    data['total_deal_amount'], data['cityscope_commission'],
-                    data['buyer_commission_percent'], data['seller_commission_percent'],
+                    data['cityscope_commission'], data.get('buyer_commission_amount', 0),
+                    data.get('seller_commission_amount', 0), data.get('buyer_commission_percent', 0), 
+                    data.get('seller_commission_percent', 0),
                     data['gst_applied'], data['net_commission'],
                     data['employee_commission'], 'PENDING',
-                    data['month'], data['year'], data['quarter'],
+                    data['transaction_date'], data['month'], data['year'], data['quarter'],
                     data['employee_id'],
                 )
             )

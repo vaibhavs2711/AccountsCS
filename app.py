@@ -238,14 +238,14 @@ def admin_add_transaction():
     employee_id_str = request.form.get('employee_id', '')
     property_id = request.form.get('property_id', '').strip()
     property_name = request.form.get('property_name', '').strip()
-    total_deal_str = request.form.get('total_deal_amount', '0')
-    cs_commission_str = request.form.get('cityscope_commission', '0')
-    buyer_pct_str = request.form.get('buyer_commission_percent', '0')
-    seller_pct_str = request.form.get('seller_commission_percent', '0')
+    transaction_date_str = request.form.get('transaction_date', '').strip()
+    cs_commission_str = request.form.get('cityscope_commission', '')
+    buyer_amount_str = request.form.get('buyer_commission_amount', '')
+    seller_amount_str = request.form.get('seller_commission_amount', '')
     gst_applied = request.form.get('gst_applied') == '1'
 
     # Validation
-    if not all([employee_id_str, property_id, property_name]):
+    if not all([employee_id_str, property_id, property_name, transaction_date_str]):
         session['txn_error'] = 'All required fields must be filled.'
         return redirect(url_for('admin_transactions'))
 
@@ -255,10 +255,9 @@ def admin_add_transaction():
 
     try:
         employee_id = int(employee_id_str)
-        total_deal = float(total_deal_str)
-        cs_commission = float(cs_commission_str)
-        buyer_pct = float(buyer_pct_str)
-        seller_pct = float(seller_pct_str)
+        cs_commission = float(cs_commission_str) if cs_commission_str else 0.0
+        buyer_amount = float(buyer_amount_str) if buyer_amount_str else 0.0
+        seller_amount = float(seller_amount_str) if seller_amount_str else 0.0
     except ValueError:
         session['txn_error'] = 'Invalid numeric value(s).'
         return redirect(url_for('admin_transactions'))
@@ -278,21 +277,26 @@ def admin_add_transaction():
     )
 
     # Date fields
-    now = datetime.now()
-    month = now.month
-    year = now.year
+    try:
+        txn_date = datetime.strptime(transaction_date_str, '%Y-%m-%d')
+    except ValueError:
+        session['txn_error'] = 'Invalid transaction date format.'
+        return redirect(url_for('admin_transactions'))
+
+    month = txn_date.month
+    year = txn_date.year
     quarter = get_quarter(month)
 
     models.create_transaction({
         'property_id': property_id,
         'property_name': property_name,
-        'total_deal_amount': total_deal,
         'cityscope_commission': cs_commission,
-        'buyer_commission_percent': buyer_pct,
-        'seller_commission_percent': seller_pct,
+        'buyer_commission_amount': buyer_amount,
+        'seller_commission_amount': seller_amount,
         'gst_applied': int(gst_applied),
         'net_commission': net_commission,
         'employee_commission': employee_commission,
+        'transaction_date': transaction_date_str,
         'month': month,
         'year': year,
         'quarter': quarter,
