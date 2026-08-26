@@ -1,6 +1,6 @@
 """
 Cityscope Accounts & Commission System
-Main Flask Application — All routes and configuration.
+Main Flask Application - All routes and configuration.
 """
 
 from datetime import datetime, timedelta
@@ -32,7 +32,7 @@ app.config['SESSION_COOKIE_HTTPONLY'] = config.SESSION_COOKIE_HTTPONLY
 
 
 # ---------------------------------------------------------------------------
-# Jinja2 globals / filters — available in every template
+# Jinja2 globals / filters - available in every template
 # ---------------------------------------------------------------------------
 
 app.jinja_env.globals.update(
@@ -59,7 +59,7 @@ def index():
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    """Login page — GET renders form, POST authenticates."""
+    """Login page - GET renders form, POST authenticates."""
     user = get_current_user()
     if user:
         if user['role'] == 'ADMIN':
@@ -96,7 +96,7 @@ def logout():
 @app.route('/admin')
 @admin_required
 def admin_dashboard():
-    """Admin dashboard — stats, leaderboard, recent transactions."""
+    """Admin dashboard - stats, leaderboard, recent transactions."""
     user = get_current_user()
     now = datetime.now()
     month, year = now.month, now.year
@@ -118,6 +118,7 @@ def admin_dashboard():
         business = models.get_employee_business_for_month(emp['id'], month, year)
         pct = get_progress_percentage(business, target)
         leaderboard.append({
+            'id': emp['id'],
             'name': emp['name'],
             'team_label': tc.get('label', emp['team_type']),
             'business_done_fmt': format_inr(business),
@@ -155,10 +156,10 @@ def admin_employees():
         target = get_monthly_target(emp['salary'], emp['team_type']) if emp['team_type'] else 0
         employees.append({
             **emp,
-            'team_label': tc.get('label', emp['team_type'] or '—'),
+            'team_label': tc.get('label', emp['team_type'] or '-'),
             'salary_fmt': format_inr(emp['salary']),
             'target_fmt': format_inr(target),
-            'joined': emp['created_at'].strftime('%d %b %Y') if emp['created_at'] else '—',
+            'joined': emp['created_at'].strftime('%d %b %Y') if emp['created_at'] else '-',
         })
 
     # Check for flash messages (success/error passed via session)
@@ -215,8 +216,11 @@ def admin_add_employee():
 def admin_transactions():
     """List transactions + add form."""
     user = get_current_user()
+    
+    sort_by = request.args.get('sort', 'added')
+    
     employees = models.get_all_employees()
-    transactions = models.get_all_transactions()
+    transactions = models.get_all_transactions(sort=sort_by)
 
     success = session.pop('txn_success', None)
     error = session.pop('txn_error', None)
@@ -228,13 +232,15 @@ def admin_transactions():
         month_names=MONTH_NAMES,
         success=success,
         error=error,
+        current_sort=sort_by,
     )
 
 
 @app.route('/admin/transactions/add', methods=['POST'])
 @admin_required
 def admin_add_transaction():
-    """Create a new transaction with calculated commission."""
+    """Create or update a transaction with calculated commission."""
+    transaction_id_str = request.form.get('transaction_id', '')
     employee_id_str = request.form.get('employee_id', '')
     property_id = request.form.get('property_id', '').strip()
     property_name = request.form.get('property_name', '').strip()
@@ -287,7 +293,7 @@ def admin_add_transaction():
     year = txn_date.year
     quarter = get_quarter(month)
 
-    models.create_transaction({
+    transaction_data = {
         'property_id': property_id,
         'property_name': property_name,
         'cityscope_commission': cs_commission,
@@ -301,12 +307,20 @@ def admin_add_transaction():
         'year': year,
         'quarter': quarter,
         'employee_id': employee_id,
-    })
+    }
 
-    session['txn_success'] = (
-        f'Transaction for "{property_name}" added. '
-        f'Employee commission: {format_inr(employee_commission)}'
-    )
+    if transaction_id_str:
+        models.update_transaction(int(transaction_id_str), transaction_data)
+        session['txn_success'] = (
+            f'Transaction for "{property_name}" updated. '
+            f'Employee commission: {format_inr(employee_commission)}'
+        )
+    else:
+        models.create_transaction(transaction_data)
+        session['txn_success'] = (
+            f'Transaction for "{property_name}" added. '
+            f'Employee commission: {format_inr(employee_commission)}'
+        )
     return redirect(url_for('admin_transactions'))
 
 
@@ -355,6 +369,83 @@ def admin_reject_leave(id):
     return redirect(url_for('admin_leaves'))
 
 
+
+@app.route('/admin/employee/<int:id>')
+@admin_required
+def admin_employee_detail(id):
+    """Detailed view for a specific employee."""
+    user = get_current_user()
+    employees_raw = models.get_all_employees()
+    employee = next((e for e in employees_raw if e['id'] == id), None)
+    if not employee:
+        return "Employee not found", 404
+
+    now = datetime.now()
+    month, year = now.month, now.year
+    quarter = get_quarter(month)
+    fy_year = get_fy_year(month, year)
+
+    tc = TEAM_CONFIG.get(employee['team_type'], {})
+    team_label = tc.get('label', employee['team_type'] or '�')
+    multiplier = tc.get('multiplier', 7)
+    commission_rate = int(tc.get('commission_rate', 0.20) * 100)
+
+    comm = models.get_commission_summary(id)
+
+    m_target = get_monthly_target(employee['salary'], employee['team_type'])
+    m_business = models.get_employee_business_for_month(id, month, year)
+    m_pct = get_progress_percentage(m_business, m_target)
+    m_remaining = max(0, m_target - m_business)
+
+    q_target = get_quarterly_target(employee['salary'], employee['team_type'])
+    q_business = models.get_employee_business_for_quarter(id, quarter, fy_year)
+    q_pct = get_progress_percentage(q_business, q_target)
+    q_remaining = max(0, q_target - q_business)
+
+    q_months = {
+        1: [4, 5, 6],
+        2: [7, 8, 9],
+        3: [10, 11, 12],
+        4: [1, 2, 3]
+    }[quarter]
+    
+    q_breakdown = []
+    for m in q_months:
+        y = fy_year if m >= 4 else fy_year + 1
+        b_done = models.get_employee_business_for_month(id, m, y)
+        q_breakdown.append({
+            'month_name': MONTH_NAMES[m],
+            'business': b_done,
+            'target': m_target
+        })
+
+    transactions = models.get_transactions_by_employee(id)
+    leaves = models.get_leaves_by_employee(id)
+
+    return render_template('admin/employee_detail.html',
+        current_user=user,
+        employee=employee,
+        team_label=team_label,
+        multiplier=multiplier,
+        commission_rate=commission_rate,
+        comm=comm,
+        m_target=m_target,
+        m_business=m_business,
+        m_pct=m_pct,
+        m_remaining=m_remaining,
+        q_target=q_target,
+        q_business=q_business,
+        q_pct=q_pct,
+        q_remaining=q_remaining,
+        q_breakdown=q_breakdown,
+        transactions=transactions,
+        leaves=leaves,
+        month_name=MONTH_NAMES[month],
+        year=year,
+        quarter=quarter,
+        fy_year=fy_year
+    )
+
 # ---------------------------------------------------------------------------
 # EMPLOYEE ROUTES
 # ---------------------------------------------------------------------------
@@ -362,7 +453,7 @@ def admin_reject_leave(id):
 @app.route('/employee')
 @login_required
 def employee_dashboard():
-    """Employee dashboard — single-page with all sections."""
+    """Employee dashboard - single-page with all sections."""
     employee = get_current_user()
     if employee['role'] == 'ADMIN':
         return redirect(url_for('admin_dashboard'))
@@ -373,7 +464,7 @@ def employee_dashboard():
     fy_year = get_fy_year(month, year)
 
     tc = TEAM_CONFIG.get(employee['team_type'], {})
-    team_label = tc.get('label', employee['team_type'] or '—')
+    team_label = tc.get('label', employee['team_type'] or '-')
     multiplier = tc.get('multiplier', 7)
     commission_rate = int(tc.get('commission_rate', 0.20) * 100)
 
@@ -459,7 +550,7 @@ def employee_dashboard():
 @app.route('/employee/leave/apply', methods=['POST'])
 @login_required
 def employee_apply_leave():
-    """Apply for leave — enforces 72-hour rule."""
+    """Apply for leave - enforces 72-hour rule."""
     employee = get_current_user()
     if employee['role'] == 'ADMIN':
         return redirect(url_for('admin_dashboard'))
@@ -502,9 +593,18 @@ def employee_apply_leave():
     return redirect(url_for('employee_dashboard'))
 
 
+@app.route('/admin/transactions/<int:id>/delete', methods=['POST'])
+@admin_required
+def admin_delete_transaction(id):
+    """Delete a transaction."""
+    models.delete_transaction(id)
+    session['txn_success'] = 'Transaction deleted successfully.'
+    return redirect(url_for('admin_transactions'))
+
 # ---------------------------------------------------------------------------
 # Run
 # ---------------------------------------------------------------------------
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
+

@@ -1,0 +1,333 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Employee Detail — Cityscope Admin{% endblock %}
+
+{% block content %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<div class="page-header">
+    <style>
+        .header-flex-row {
+            display: flex !important;
+            flex-direction: row !important;
+            flex-wrap: nowrap !important;
+            justify-content: space-between !important;
+            align-items: center !important;
+            width: 100% !important;
+        }
+        @media (max-width: 900px) {
+            .header-flex-row {
+                flex-wrap: wrap !important;
+                justify-content: center !important;
+                gap: 24px;
+            }
+        }
+    </style>
+    <div>
+        <a href="{{ url_for('admin_employees') }}" style="color:var(--text-muted); text-decoration:none; display:flex; align-items:center; gap:4px; font-size:0.85rem; margin-bottom:8px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"></polyline></svg>
+            Back to Employees
+        </a>
+        <h2 style="color:var(--text);">Employee Detail</h2>
+    </div>
+</div>
+
+<div class="dashboard-grid">
+    <!-- 1. Header -->
+    <div class="card header-flex-row" style="grid-column: 1 / -1; padding: 32px; position: relative; overflow: hidden; background: #ffffff;">
+        
+        <!-- Subtle background decoration -->
+        <div style="position: absolute; top: -50px; right: -50px; width: 300px; height: 300px; background: radial-gradient(circle, #eff6ff 0%, rgba(255,255,255,0) 70%); border-radius: 50%; z-index: 0;"></div>
+        <div style="position: absolute; bottom: -100px; left: 30%; width: 400px; height: 400px; background: radial-gradient(circle, #f8fafc 0%, rgba(255,255,255,0) 70%); border-radius: 50%; z-index: 0;"></div>
+
+        <!-- Avatar and Info -->
+        <div style="display: flex; align-items: center; gap: 24px; z-index: 1;">
+            <div style="position: relative; width: 100px; height: 100px; background-color: #eff6ff; border-radius: 50%; display: flex; justify-content: center; align-items: center;">
+                <div style="width: 76px; height: 76px; background-color: var(--accent); border-radius: 50%; display: flex; justify-content: center; align-items: center; color: white; font-size: 2.2rem; font-weight: 700;">
+                    {{ employee.name[0]|upper }}
+                </div>
+                <div style="position: absolute; bottom: 8px; right: 8px; width: 18px; height: 18px; background-color: #22c55e; border-radius: 50%; border: 3px solid white;"></div>
+            </div>
+            
+            <div>
+                <h2 style="margin: 0 0 16px 0; color: var(--text); font-size: 2rem; font-weight: 800;">{{ employee.name }}</h2>
+                <div style="display: flex; align-items: center; gap: 16px;">
+                    <span style="background-color: #eff6ff; color: var(--accent); padding: 6px 16px; border-radius: 20px; font-size: 0.9rem; font-weight: 700;">
+                        {{ team_label }}
+                    </span>
+                    
+                    <div style="width: 1px; height: 28px; background-color: #cbd5e1;"></div>
+                    
+                    <div style="display: flex; flex-direction: column; justify-content: center;">
+                        <div style="font-weight: 700; font-size: 1.2rem; color: #334155; line-height: 1;">{{ format_inr(employee.salary) }}</div>
+                        <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px; line-height: 1;">Salary</div>
+                    </div>
+                    
+                    <div style="width: 1px; height: 28px; background-color: #cbd5e1;"></div>
+                    
+                    <div style="display: flex; flex-direction: column; justify-content: center;">
+                        <div style="font-weight: 700; font-size: 1.2rem; color: #334155; line-height: 1;">{{ format_inr(m_target) }}</div>
+                        <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px; line-height: 1;">Current Monthly Target</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Stats Card -->
+        <div style="z-index: 1; display: flex; align-items: stretch; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 16px; padding: 24px 40px; gap: 32px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.02);">
+            <!-- Icon -->
+            <div style="display: flex; justify-content: center; align-items: center;">
+                <div style="width: 56px; height: 56px; background-color: #eff6ff; border-radius: 50%; display: flex; justify-content: center; align-items: center; color: var(--accent);">
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <circle cx="12" cy="12" r="6"></circle>
+                        <circle cx="12" cy="12" r="2"></circle>
+                    </svg>
+                </div>
+            </div>
+            <!-- Values -->
+            <div style="display: flex; flex-direction: column; justify-content: center; gap: 20px;">
+                <div>
+                    <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 4px; font-weight: 600;">Target Multiplier</div>
+                    <div style="font-size: 1.5rem; font-weight: 800; color: var(--accent); line-height: 1;">{{ multiplier }}x</div>
+                </div>
+                <div>
+                    <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 4px; font-weight: 600;">Commission Rate</div>
+                    <div style="font-size: 1.5rem; font-weight: 800; color: var(--accent); line-height: 1;">{{ commission_rate }}%</div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- 2. Charts Row -->
+    <div style="grid-column: 1 / -1; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px;">
+        
+        <!-- Commission Pie -->
+        <div class="card" style="display:flex; flex-direction:column; align-items:center; justify-content:center;">
+            <div class="card-title">Commission Status</div>
+            <div style="width: 200px; height: 200px;">
+                <canvas id="commissionPie"></canvas>
+            </div>
+            <div style="margin-top: 16px; display:flex; justify-content:center; gap: 24px; font-size: 0.85rem; width:100%;">
+                <div style="text-align:center;">
+                    <div style="color:#cbd5e1; font-weight:700; font-size:1.1rem;">{{ format_inr(comm.pending) }}</div>
+                    <div style="color:var(--text-muted);">Pending</div>
+                </div>
+                <div style="text-align:center;">
+                    <div style="color:#2563eb; font-weight:700; font-size:1.1rem;">{{ format_inr(comm.received) }}</div>
+                    <div style="color:var(--text-muted);">Received</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Monthly Target Pie -->
+        <div class="card" style="display:flex; flex-direction:column; align-items:center; justify-content:center;">
+            <div class="card-title">{{ month_name }} {{ year }} Target</div>
+            <div style="width: 200px; height: 200px;">
+                <canvas id="monthlyPie"></canvas>
+            </div>
+            <div style="margin-top: 16px; display:flex; justify-content:center; gap: 24px; font-size: 0.85rem; width:100%;">
+                <div style="text-align:center;">
+                    <div style="color:var(--text); font-weight:700; font-size:1.1rem;">{{ format_inr(m_business) }}</div>
+                    <div style="color:var(--text-muted);">Business Done</div>
+                </div>
+                <div style="text-align:center;">
+                    <div style="color:#cbd5e1; font-weight:700; font-size:1.1rem;">{{ format_inr(m_remaining) }}</div>
+                    <div style="color:var(--text-muted);">Remaining</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quarterly Target Bar -->
+        <div class="card" style="display:flex; flex-direction:column; align-items:center; justify-content:center;">
+            <div class="card-title">Q{{ quarter }} FY {{ fy_year }}-{{ (fy_year+1)|string|truncate(2, True, '') }} Breakdown</div>
+            <div style="width: 100%; height: 200px;">
+                <canvas id="quarterlyBar"></canvas>
+            </div>
+            <div style="margin-top: 16px; font-size: 0.85rem; color:var(--text-muted); text-align:center;">
+                Quarterly Target: {{ format_inr(q_target) }}<br>
+                Business Done: {{ format_inr(q_business) }} ({{ q_pct }}%)
+            </div>
+        </div>
+
+    </div>
+
+    <!-- 3. Transactions List -->
+    <div class="card" style="grid-column: 1 / -1;">
+        <div class="card-title">Transactions ({{ transactions|length }})</div>
+        {% if transactions|length > 0 %}
+            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px;">
+            {% for t in transactions %}
+            <div class="txn-item" style="border: 1px solid var(--border); border-radius: 8px; padding: 16px; background: #fff;">
+                <div class="txn-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <span class="txn-prop" style="font-weight: 600; color: var(--text);">{{ t.property_name }}</span>
+                    {% if t.payment_status == 'DONE' %}
+                        <span class="badge-done" style="background:#dcfce7; color:#166534; padding:2px 8px; border-radius:12px; font-size:0.7rem; font-weight:600;">✓ Paid</span>
+                    {% else %}
+                        <span class="badge-pending" style="background:#fef08a; color:#854d0e; padding:2px 8px; border-radius:12px; font-size:0.7rem; font-weight:600;">⏳ Pending</span>
+                    {% endif %}
+                </div>
+                <div class="txn-meta" style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 12px;">
+                    {{ t.property_id }} | {% if t.transaction_date %}{{ t.transaction_date.strftime('%B %Y') }}{% else %}{{ month_name }} {{ year }}{% endif %}
+                </div>
+                <div class="txn-amounts" style="font-size: 0.85rem; color: var(--text);">
+                    Deal: {{ format_inr(t.cityscope_commission) }} |
+                    Commission: <strong>{{ format_inr(t.employee_commission) }}</strong>
+                    {% if t.gst_applied %}
+                        <span class="gst-note" style="color: var(--warning); font-size: 0.75rem;">(GST applied)</span>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+            </div>
+        {% else %}
+            <p class="text-muted-custom" style="font-size:0.85rem; padding:8px 0;">No transactions yet.</p>
+        {% endif %}
+    </div>
+
+    <!-- 4. Leave Requests List -->
+    <div class="card" style="grid-column: 1 / -1;">
+        <div class="card-title">Leave Requests ({{ leaves|length }})</div>
+        {% if leaves|length > 0 %}
+            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px;">
+            {% for lr in leaves %}
+            <div class="leave-item" style="border: 1px solid var(--border); border-radius: 8px; padding: 16px; background: #fff;">
+                <div class="leave-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <span class="leave-date" style="font-weight: 600; color: var(--text);">{{ lr.date_of_leave.strftime('%d %b %Y') }}</span>
+                    {% if lr.status == 'PENDING' %}
+                        <span class="badge-pending" style="background:#fef08a; color:#854d0e; padding:2px 8px; border-radius:12px; font-size:0.7rem; font-weight:600;">PENDING</span>
+                    {% elif lr.status == 'APPROVED' %}
+                        <span class="badge-approved" style="background:#dcfce7; color:#166534; padding:2px 8px; border-radius:12px; font-size:0.7rem; font-weight:600;">APPROVED</span>
+                    {% else %}
+                        <span class="badge-rejected" style="background:#fee2e2; color:#991b1b; padding:2px 8px; border-radius:12px; font-size:0.7rem; font-weight:600;">REJECTED</span>
+                    {% endif %}
+                </div>
+                {% if lr.reason %}
+                <div class="leave-reason" style="font-size: 0.85rem; color: var(--text-muted);">{{ lr.reason }}</div>
+                {% endif %}
+            </div>
+            {% endfor %}
+            </div>
+        {% else %}
+            <p class="text-muted-custom" style="font-size:0.85rem; padding:8px 0;">No leave requests.</p>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+    // Data from backend
+    const commPending = {{ comm.pending }};
+    const commReceived = {{ comm.received }};
+    
+    const mBusiness = {{ m_business }};
+    const mRemaining = {{ m_remaining }};
+    const mTarget = {{ m_target }};
+
+    const qBreakdown = {{ q_breakdown|tojson }};
+    const qLabels = qBreakdown.map(item => item.month_name);
+    const qDataDone = qBreakdown.map(item => item.business);
+    const qDataRemaining = qBreakdown.map(item => Math.max(0, item.target - item.business));
+
+    // Colors matching dashboard
+    const colorSuccess = '#22c55e';
+    const colorWarning = '#fbbf24';
+    const colorPrimary = '#2563eb';
+    const colorGray = '#cbd5e1';
+
+    // 1. Commission Pie Chart
+    new Chart(document.getElementById('commissionPie'), {
+        type: 'pie',
+        data: {
+            labels: ['Received', 'Pending'],
+            datasets: [{
+                data: [commReceived, commPending],
+                backgroundColor: [colorPrimary, colorGray],
+                borderWidth: 0
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return ' ₹' + context.raw.toLocaleString('en-IN');
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+    // 2. Monthly Target Pie (Doughnut)
+    new Chart(document.getElementById('monthlyPie'), {
+        type: 'doughnut',
+        data: {
+            labels: ['Business Done', 'Remaining Target'],
+            datasets: [{
+                data: [mBusiness, mRemaining],
+                backgroundColor: [colorPrimary, colorGray],
+                borderWidth: 0
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            cutout: '65%',
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return ' ₹' + context.raw.toLocaleString('en-IN');
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+    // 3. Quarterly Breakdown Bar Chart (Stacked)
+    new Chart(document.getElementById('quarterlyBar'), {
+        type: 'bar',
+        data: {
+            labels: qLabels,
+            datasets: [
+                {
+                    label: 'Business Done',
+                    data: qDataDone,
+                    backgroundColor: colorPrimary,
+                    borderRadius: 4
+                },
+                {
+                    label: 'Remaining Target',
+                    data: qDataRemaining,
+                    backgroundColor: colorGray,
+                    borderRadius: 4
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                x: { stacked: true, grid: { display: false } },
+                y: { stacked: true, beginAtZero: true, display: false }
+            },
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return context.dataset.label + ': ₹' + context.raw.toLocaleString('en-IN');
+                        }
+                    }
+                }
+            }
+        }
+    });
+</script>
+{% endblock %}

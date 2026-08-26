@@ -100,16 +100,14 @@ def create_transaction(data: dict):
                 """INSERT INTO transactions
                    (property_id, property_name, 
                     cityscope_commission, buyer_commission_amount,
-                    seller_commission_amount, buyer_commission_percent,
-                    seller_commission_percent, gst_applied, net_commission,
+                    seller_commission_amount, gst_applied, net_commission,
                     employee_commission, payment_status, transaction_date, month, year, quarter,
                     employee_id)
-                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
                 (
                     data['property_id'], data['property_name'],
                     data['cityscope_commission'], data.get('buyer_commission_amount', 0),
-                    data.get('seller_commission_amount', 0), data.get('buyer_commission_percent', 0), 
-                    data.get('seller_commission_percent', 0),
+                    data.get('seller_commission_amount', 0),
                     data['gst_applied'], data['net_commission'],
                     data['employee_commission'], 'PENDING',
                     data['transaction_date'], data['month'], data['year'], data['quarter'],
@@ -120,17 +118,51 @@ def create_transaction(data: dict):
     finally:
         db.close()
 
-
-def get_all_transactions():
-    """Return all transactions with employee name, ordered by date desc."""
+def update_transaction(transaction_id: int, data: dict):
+    """Update an existing transaction."""
     db = get_db()
     try:
         with db.cursor() as cur:
             cur.execute(
-                """SELECT t.*, u.name AS employee_name, u.team_type
+                """UPDATE transactions SET
+                    property_id = %s, property_name = %s,
+                    cityscope_commission = %s, buyer_commission_amount = %s,
+                    seller_commission_amount = %s, gst_applied = %s, net_commission = %s,
+                    employee_commission = %s, transaction_date = %s, month = %s, year = %s, quarter = %s,
+                    employee_id = %s
+                   WHERE id = %s""",
+                (
+                    data['property_id'], data['property_name'],
+                    data['cityscope_commission'], data.get('buyer_commission_amount', 0),
+                    data.get('seller_commission_amount', 0),
+                    data['gst_applied'], data['net_commission'],
+                    data['employee_commission'],
+                    data['transaction_date'], data['month'], data['year'], data['quarter'],
+                    data['employee_id'],
+                    transaction_id
+                )
+            )
+    finally:
+        db.close()
+
+
+def get_all_transactions(sort='added'):
+    """Return all transactions with employee name, ordered dynamically."""
+    db = get_db()
+    
+    order_clause = "t.created_at DESC"
+    if sort == 'date':
+        order_clause = "t.transaction_date DESC"
+    elif sort == 'updated':
+        order_clause = "t.updated_at DESC"
+        
+    try:
+        with db.cursor() as cur:
+            cur.execute(
+                f"""SELECT t.*, u.name AS employee_name, u.team_type
                    FROM transactions t
                    JOIN users u ON t.employee_id = u.id
-                   ORDER BY t.transaction_date DESC"""
+                   ORDER BY {order_clause}"""
             )
             return cur.fetchall()
     finally:
@@ -371,5 +403,15 @@ def reject_leave(leave_id: int):
                 "UPDATE leave_requests SET status = 'REJECTED' WHERE id = %s",
                 (leave_id,)
             )
+    finally:
+        db.close()
+
+
+def delete_transaction(transaction_id: int):
+    """Delete a transaction by ID."""
+    db = get_db()
+    try:
+        with db.cursor() as cur:
+            cur.execute("DELETE FROM transactions WHERE id = %s", (transaction_id,))
     finally:
         db.close()

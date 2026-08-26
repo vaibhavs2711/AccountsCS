@@ -118,7 +118,7 @@
                     {{ t.property_id }} | {{ month_names[t.month] }} {{ t.year }}
                 </div>
                 <div class="txn-amounts">
-                    Deal: {{ format_inr(t.total_deal_amount) }} |
+                    Deal: {{ format_inr(t.cityscope_commission) }} |
                     Your Commission: <strong>{{ format_inr(t.employee_commission) }}</strong>
                     {% if t.gst_applied %}
                         <span class="gst-note">(GST applied)</span>

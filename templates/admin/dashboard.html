@@ -9,6 +9,16 @@
 </div>
 
 <!-- Stat Cards -->
+<style>
+    .view-status-btn {
+        transition: all 0.2s ease;
+    }
+    .view-status-btn:hover {
+        background-color: var(--accent) !important;
+        color: white !important;
+        border-color: var(--accent) !important;
+    }
+</style>
 <div class="stat-grid">
     <div class="stat-card">
         <div class="stat-value">{{ employee_count }}</div>
@@ -42,6 +52,7 @@
                     <th>Business Done</th>
                     <th>Monthly Target</th>
                     <th style="min-width:160px;">Progress</th>
+                    <th>Action</th>
                 </tr>
             </thead>
             <tbody>
@@ -61,6 +72,9 @@
                                 {{ emp.percentage }}%
                             </span>
                         </div>
+                    </td>
+                    <td>
+                        <a href="{{ url_for('admin_employee_detail', id=emp.id) }}" class="btn btn-secondary view-status-btn" style="padding: 4px 12px; font-size: 0.8rem; border-radius: 6px; text-decoration: none;">View Status</a>
                     </td>
                 </tr>
                 {% endfor %}
@@ -95,7 +109,7 @@
                     <td><strong>{{ t.property_name }}</strong></td>
                     <td>{{ t.property_id }}</td>
                     <td>{{ t.employee_name }}</td>
-                    <td>{{ format_inr(t.total_deal_amount) }}</td>
+                    <td>{{ format_inr(t.cityscope_commission) }}</td>
                     <td>{{ format_inr(t.employee_commission) }}</td>
                     <td>
                         {% if t.gst_applied %}
