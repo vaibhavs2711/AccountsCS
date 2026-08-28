@@ -47,8 +47,9 @@
             <span>Target: <strong>{{ monthly_target_fmt }}</strong></span>
         </div>
         <div class="progress-track">
-            <div class="progress-fill"
-                 style="width:{{ [monthly_pct, 100]|min }}%; background:{{ monthly_color }};"></div>
+            {% set m_width = [monthly_pct, 100]|min %}
+            {% set m_style = "width:" ~ m_width ~ "%; background:" ~ monthly_color ~ ";" %}
+            <div class="progress-fill" style="{{ m_style }}"></div>
         </div>
         <div class="target-status {% if monthly_pct >= 100 %}achieved{% endif %}">
             {% if monthly_pct >= 100 %}
@@ -67,8 +68,9 @@
             <span>Target: <strong>{{ quarterly_target_fmt }}</strong></span>
         </div>
         <div class="progress-track">
-            <div class="progress-fill"
-                 style="width:{{ [quarterly_pct, 100]|min }}%; background:{{ quarterly_color }};"></div>
+            {% set q_width = [quarterly_pct, 100]|min %}
+            {% set q_style = "width:" ~ q_width ~ "%; background:" ~ quarterly_color ~ ";" %}
+            <div class="progress-fill" style="{{ q_style }}"></div>
         </div>
         <div class="target-status {% if quarterly_pct >= 100 %}achieved{% endif %}">
             {% if quarterly_pct >= 100 %}

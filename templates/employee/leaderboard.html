@@ -55,7 +55,8 @@
                                 <span class="lb-you" style="background: var(--primary); color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; margin-left: 4px;">You</span>
                             {% endif %}
                         </span>
-                        <span class="lb-pct" style="color:{{ entry.color }}; font-weight: 700; font-size: 0.95rem;">
+                        {% set color_style = "color:" ~ entry.color ~ ";" %}
+                        <span class="lb-pct" style="font-weight: 700; font-size: 0.95rem; {{ color_style }}">
                             {{ entry.percentage }}%
                         </span>
                     </div>
@@ -79,7 +80,8 @@
                                 <span class="lb-you" style="background: var(--primary); color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; margin-left: 4px;">You</span>
                             {% endif %}
                         </span>
-                        <span class="lb-pct" style="color:{{ entry.color }}; font-weight: 700; font-size: 0.95rem;">
+                        {% set color_style2 = "color:" ~ entry.color ~ ";" %}
+                        <span class="lb-pct" style="font-weight: 700; font-size: 0.95rem; {{ color_style2 }}">
                             {{ entry.percentage }}%
                         </span>
                     </div>
