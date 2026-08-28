@@ -46,8 +46,7 @@
                         {% for entry in leaderboard_monthly %}
                         <tr>
                             <td>
-                                {% set rank_muted = "color: var(--text-muted);" if loop.index > 3 else "" %}
-                                <strong class="lb-rank {% if loop.index == 1 %}gold{% elif loop.index == 2 %}silver{% elif loop.index == 3 %}bronze{% endif %}" style="font-size: 1.1rem; display: inline-block; width: auto; {{ rank_muted }}">
+                                <strong class="lb-rank {% if loop.index == 1 %}gold{% elif loop.index == 2 %}silver{% elif loop.index == 3 %}bronze{% endif %} {% if loop.index > 3 %}text-muted-custom{% endif %}" style="font-size: 1.1rem; display: inline-block; width: auto;">
                                     #{{ loop.index }}
                                 </strong>
                             </td>
@@ -62,14 +61,12 @@
                             <td><strong>{{ format_inr(entry.business_done) }}</strong></td>
                             <td>{{ format_inr(entry.target) }}</td>
                             <td>
-                                {% set color_style = "color: " ~ entry.color ~ ";" %}
-                                <span style="font-weight: 700; {{ color_style }}">{{ entry.percentage }}%</span>
+                                <span class="achievement-pct" style="font-weight: 700;" data-color="{{ entry.color }}">{{ entry.percentage }}%</span>
                             </td>
                             <td>
                                 {% set p_width = [entry.percentage, 100]|min %}
-                                {% set fill_style = "width: " ~ p_width ~ "%; background: " ~ entry.color ~ ";" %}
                                 <div class="progress-track thin" style="width: 120px;">
-                                    <div class="progress-fill" style="{{ fill_style }}"></div>
+                                    <div class="progress-fill achievement-fill" data-width="{{ p_width }}" data-bg="{{ entry.color }}"></div>
                                 </div>
                             </td>
                         </tr>
@@ -102,8 +99,7 @@
                         {% for entry in leaderboard_quarterly %}
                         <tr>
                             <td>
-                                {% set rank_muted2 = "color: var(--text-muted);" if loop.index > 3 else "" %}
-                                <strong class="lb-rank {% if loop.index == 1 %}gold{% elif loop.index == 2 %}silver{% elif loop.index == 3 %}bronze{% endif %}" style="font-size: 1.1rem; display: inline-block; width: auto; {{ rank_muted2 }}">
+                                <strong class="lb-rank {% if loop.index == 1 %}gold{% elif loop.index == 2 %}silver{% elif loop.index == 3 %}bronze{% endif %} {% if loop.index > 3 %}text-muted-custom{% endif %}" style="font-size: 1.1rem; display: inline-block; width: auto;">
                                     #{{ loop.index }}
                                 </strong>
                             </td>
@@ -118,14 +114,12 @@
                             <td><strong>{{ format_inr(entry.business_done) }}</strong></td>
                             <td>{{ format_inr(entry.target) }}</td>
                             <td>
-                                {% set color_style2 = "color: " ~ entry.color ~ ";" %}
-                                <span style="font-weight: 700; {{ color_style2 }}">{{ entry.percentage }}%</span>
+                                <span class="achievement-pct" style="font-weight: 700;" data-color="{{ entry.color }}">{{ entry.percentage }}%</span>
                             </td>
                             <td>
                                 {% set p_width2 = [entry.percentage, 100]|min %}
-                                {% set fill_style2 = "width: " ~ p_width2 ~ "%; background: " ~ entry.color ~ ";" %}
                                 <div class="progress-track thin" style="width: 120px;">
-                                    <div class="progress-fill" style="{{ fill_style2 }}"></div>
+                                    <div class="progress-fill achievement-fill" data-width="{{ p_width2 }}" data-bg="{{ entry.color }}"></div>
                                 </div>
                             </td>
                         </tr>
@@ -140,4 +134,15 @@
 
     </div>
 </div>
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        document.querySelectorAll('.achievement-pct').forEach(el => {
+            el.style.color = el.getAttribute('data-color');
+        });
+        document.querySelectorAll('.achievement-fill').forEach(el => {
+            el.style.width = el.getAttribute('data-width') + '%';
+            el.style.background = el.getAttribute('data-bg');
+        });
+    });
+</script>
 {% endblock %}

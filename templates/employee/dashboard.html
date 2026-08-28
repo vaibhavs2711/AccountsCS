@@ -45,11 +45,9 @@
         <div class="target-row">
             <span>Business Done: <strong>{{ monthly_business_fmt }}</strong></span>
             <span>Target: <strong>{{ monthly_target_fmt }}</strong></span>
-        </div>
         <div class="progress-track">
             {% set m_width = [monthly_pct, 100]|min %}
-            {% set m_style = "width:" ~ m_width ~ "%; background:" ~ monthly_color ~ ";" %}
-            <div class="progress-fill" style="{{ m_style }}"></div>
+            <div class="progress-fill achievement-fill" data-width="{{ m_width }}" data-bg="{{ monthly_color }}"></div>
         </div>
         <div class="target-status {% if monthly_pct >= 100 %}achieved{% endif %}">
             {% if monthly_pct >= 100 %}
@@ -66,11 +64,9 @@
         <div class="target-row">
             <span>Business Done: <strong>{{ quarterly_business_fmt }}</strong></span>
             <span>Target: <strong>{{ quarterly_target_fmt }}</strong></span>
-        </div>
         <div class="progress-track">
             {% set q_width = [quarterly_pct, 100]|min %}
-            {% set q_style = "width:" ~ q_width ~ "%; background:" ~ quarterly_color ~ ";" %}
-            <div class="progress-fill" style="{{ q_style }}"></div>
+            <div class="progress-fill achievement-fill" data-width="{{ q_width }}" data-bg="{{ quarterly_color }}"></div>
         </div>
         <div class="target-status {% if quarterly_pct >= 100 %}achieved{% endif %}">
             {% if quarterly_pct >= 100 %}
@@ -113,4 +109,12 @@
     </div>
 
 </div>
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        document.querySelectorAll('.achievement-fill').forEach(el => {
+            el.style.width = el.getAttribute('data-width') + '%';
+            el.style.background = el.getAttribute('data-bg');
+        });
+    });
+</script>
 {% endblock %}
