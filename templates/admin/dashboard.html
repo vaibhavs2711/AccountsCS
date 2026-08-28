@@ -38,15 +38,18 @@
     </div>
 </div>
 
-<!-- Employee Performance Leaderboard -->
+<!-- Employee Performance Leaderboard Preview -->
 <div class="card">
-    <div class="card-title">This Month — Employee Performance</div>
+    <div class="card-title" style="display: flex; justify-content: space-between; align-items: center;">
+        <span>🏆 Employee Performance (Monthly Leaderboard)</span>
+        <a href="{{ url_for('admin_leaderboard') }}" class="btn btn-primary" style="padding: 4px 12px; font-size: 0.8rem; border-radius: 6px; text-decoration: none;">View Full Leaderboard</a>
+    </div>
     {% if leaderboard|length > 0 %}
     <div class="table-responsive">
         <table class="table mb-0">
             <thead>
                 <tr>
-                    <th>#</th>
+                    <th>Rank</th>
                     <th>Employee</th>
                     <th>Team</th>
                     <th>Business Done</th>
@@ -56,11 +59,17 @@
                 </tr>
             </thead>
             <tbody>
-                {% for emp in leaderboard %}
+                {% for emp in leaderboard[:3] %}
                 <tr data-emp-color="{{ emp.color }}" data-emp-pct="{{ [emp.percentage, 100] | min }}">
-                    <td>{{ loop.index }}</td>
+                    <td>
+                        <strong class="lb-rank {% if loop.index == 1 %}gold{% elif loop.index == 2 %}silver{% elif loop.index == 3 %}bronze{% endif %}" style="font-size: 1.1rem; display: inline-block; width: auto; color: {% if loop.index > 3 %}var(--text-muted){% endif %};">
+                            #{{ loop.index }}
+                        </strong>
+                    </td>
                     <td><strong>{{ emp.name }}</strong></td>
-                    <td>{{ emp.team_label }}</td>
+                    <td>
+                        <span class="badge-pending" style="background: #eff6ff; color: var(--accent); padding: 4px 10px;">{{ emp.team_label }}</span>
+                    </td>
                     <td>{{ emp.business_done_fmt }}</td>
                     <td>{{ emp.target_fmt }}</td>
                     <td>
@@ -81,8 +90,15 @@
             </tbody>
         </table>
     </div>
+    {% if leaderboard|length > 3 %}
+    <div style="text-align: center; margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--border);">
+        <a href="{{ url_for('admin_leaderboard') }}" style="font-size: 0.85rem; font-weight: 600; color: var(--accent); text-decoration: none;">
+            Show remaining {{ leaderboard|length - 3 }} employee(s) →
+        </a>
+    </div>
+    {% endif %}
     {% else %}
-    <p class="text-muted-custom" style="font-size:0.85rem;">No employees found.</p>
+    <p class="text-muted-custom" style="font-size:0.85rem; text-align: center; padding: 12px 0;">No employees found.</p>
     {% endif %}
 </div>
 

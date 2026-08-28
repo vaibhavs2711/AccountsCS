@@ -69,6 +69,7 @@
                     <th>Applied On</th>
                     <th>Reason</th>
                     <th>Status</th>
+                    <th>Action</th>
                 </tr>
             </thead>
             <tbody>
@@ -86,6 +87,11 @@
                         {% else %}
                             <span class="badge-rejected">REJECTED</span>
                         {% endif %}
+                    </td>
+                    <td>
+                        <form method="POST" action="{{ url_for('admin_cancel_leave', id=lr.id) }}" onsubmit="return confirm('Are you sure you want to cancel/delete this leave request?');" style="margin:0;">
+                            <button type="submit" class="btn btn-secondary" style="padding: 4px 10px; font-size: 0.75rem; border-radius: 6px; background-color: var(--danger); border-color: var(--danger); color:#fff; cursor:pointer;">Cancel</button>
+                        </form>
                     </td>
                 </tr>
                 {% endfor %}

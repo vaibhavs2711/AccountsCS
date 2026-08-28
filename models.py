@@ -74,15 +74,21 @@ def get_employee_count():
 
 
 def create_user(name: str, email: str, password_hash: str, role: str,
-                team_type: str, salary: float):
+                team_type: str, salary: float, target_multiplier: float = None, commission_rate: float = None):
     """Insert a new user. Returns the new user id."""
+    from commission import TEAM_CONFIG
+    if target_multiplier is None:
+        target_multiplier = TEAM_CONFIG.get(team_type, {}).get('multiplier', 7.0) if team_type else 0.0
+    if commission_rate is None:
+        commission_rate = TEAM_CONFIG.get(team_type, {}).get('commission_rate', 0.20) if team_type else 0.0
+
     db = get_db()
     try:
         with db.cursor() as cur:
             cur.execute(
-                """INSERT INTO users (name, email, password, role, team_type, salary)
-                   VALUES (%s, %s, %s, %s, %s, %s)""",
-                (name, email, password_hash, role, team_type, salary)
+                """INSERT INTO users (name, email, password, role, team_type, salary, target_multiplier, commission_rate)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
+                (name, email, password_hash, role, team_type, salary, target_multiplier, commission_rate)
             )
             return cur.lastrowid
     finally:
@@ -304,9 +310,8 @@ def get_commission_summary(employee_id: int):
 
 # ========================= LEAVE REQUESTS =================================
 
-def create_leave_request(employee_id: int, date_of_leave: str, reason: str, blocked: bool):
+def create_leave_request(employee_id: int, date_of_leave: str, reason: str, blocked: bool, status: str = 'PENDING'):
     """Insert a new leave request. date_of_leave should be a date string 'YYYY-MM-DD'."""
-    status = 'REJECTED' if blocked else 'PENDING'
     db = get_db()
     try:
         with db.cursor() as cur:
@@ -394,6 +399,19 @@ def approve_leave(leave_id: int):
         db.close()
 
 
+def delete_leave_request(leave_id: int):
+    """Delete a leave request."""
+    db = get_db()
+    try:
+        with db.cursor() as cur:
+            cur.execute(
+                "DELETE FROM leave_requests WHERE id = %s",
+                (leave_id,)
+            )
+    finally:
+        db.close()
+
+
 def reject_leave(leave_id: int):
     """Set leave status to REJECTED."""
     db = get_db()
@@ -413,5 +431,118 @@ def delete_transaction(transaction_id: int):
     try:
         with db.cursor() as cur:
             cur.execute("DELETE FROM transactions WHERE id = %s", (transaction_id,))
+    finally:
+        db.close()
+
+
+def update_user(user_id: int, data: dict):
+    """Update employee details in the database."""
+    db = get_db()
+    try:
+        with db.cursor() as cur:
+            cur.execute(
+                """UPDATE users SET
+                    name = %s,
+                    email = %s,
+                    salary = %s,
+                    team_type = %s,
+                    target_multiplier = %s,
+                    commission_rate = %s
+                   WHERE id = %s""",
+                (
+                    data['name'],
+                    data['email'],
+                    data['salary'],
+                    data['team_type'],
+                    data['target_multiplier'],
+                    data['commission_rate'],
+                    user_id
+                )
+            )
+    finally:
+        db.close()
+
+
+def get_transaction_by_id(txn_id: int):
+    """Fetch transaction by ID."""
+    db = get_db()
+    try:
+        with db.cursor() as cur:
+            cur.execute("SELECT * FROM transactions WHERE id = %s", (txn_id,))
+            return cur.fetchone()
+    finally:
+        db.close()
+
+
+def get_employee_transactions_for_quarter(employee_id: int, quarter: int, fy_year: int):
+    """Return all transactions for an employee in a given FY quarter."""
+    from commission import get_quarter_months
+    months = get_quarter_months(quarter)
+    
+    db = get_db()
+    try:
+        with db.cursor() as cur:
+            txns = []
+            for m in months:
+                cal_year = fy_year + 1 if m <= 3 else fy_year
+                cur.execute(
+                    """SELECT * FROM transactions
+                       WHERE employee_id = %s AND month = %s AND year = %s""",
+                    (employee_id, m, cal_year)
+                )
+                txns.extend(cur.fetchall())
+            return txns
+    finally:
+        db.close()
+
+
+def recalculate_employee_quarterly_commissions(employee_id: int, quarter: int, fy_year: int):
+    """Recalculate employee commission for a specific quarter/year based on target progress."""
+    employee = get_user_by_id(employee_id)
+    if not employee or employee['role'] != 'EMPLOYEE':
+        return
+
+    salary = employee['salary']
+    multiplier = employee['target_multiplier']
+    commission_rate = employee['commission_rate']
+
+    # Quarterly target
+    from commission import get_quarterly_target, calculate_commission
+    q_target = get_quarterly_target(salary, target_multiplier=multiplier)
+
+    # Get all transactions for this quarter
+    txns = get_employee_transactions_for_quarter(employee_id, quarter, fy_year)
+
+    # Calculate total business done
+    total_business = sum(t['cityscope_commission'] for t in txns)
+
+    # Achievement percentage
+    if q_target <= 0:
+        progress = 100.0
+    else:
+        progress = (total_business / q_target) * 100.0
+
+    # Adjustment factor
+    if progress >= 95.0:
+        factor = 1.0
+    else:
+        factor = max(0.05, round(progress / 100.0, 4))
+
+    # Update each transaction in the database
+    db = get_db()
+    try:
+        with db.cursor() as cur:
+            for t in txns:
+                # Recalculate employee commission
+                _, new_emp_commission = calculate_commission(
+                    cityscope_commission=t['cityscope_commission'],
+                    gst_applied=bool(t['gst_applied']),
+                    commission_rate=commission_rate,
+                    factor=factor
+                )
+                cur.execute(
+                    "UPDATE transactions SET employee_commission = %s WHERE id = %s",
+                    (new_emp_commission, t['id'])
+                )
     finally:
         db.close()

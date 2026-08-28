@@ -78,7 +78,7 @@ def get_quarter_months(quarter: int) -> list:
 # Commission calculation
 # ---------------------------------------------------------------------------
 
-def calculate_commission(cityscope_commission: float, gst_applied: bool, team_type: str):
+def calculate_commission(cityscope_commission: float, gst_applied: bool, team_type: str = None, commission_rate: float = None, factor: float = 1.0):
     """Calculate net commission and employee share.
 
     Returns (net_commission, employee_commission).
@@ -88,8 +88,12 @@ def calculate_commission(cityscope_commission: float, gst_applied: bool, team_ty
     else:
         net_commission = cityscope_commission
 
-    rate = TEAM_CONFIG.get(team_type, {}).get('commission_rate', 0.20)
-    employee_commission = net_commission * rate
+    if commission_rate is not None:
+        rate = commission_rate
+    else:
+        rate = TEAM_CONFIG.get(team_type, {}).get('commission_rate', 0.20) if team_type else 0.20
+
+    employee_commission = net_commission * rate * factor
     return round(net_commission, 2), round(employee_commission, 2)
 
 
@@ -97,15 +101,18 @@ def calculate_commission(cityscope_commission: float, gst_applied: bool, team_ty
 # Target helpers
 # ---------------------------------------------------------------------------
 
-def get_monthly_target(salary: float, team_type: str) -> float:
+def get_monthly_target(salary: float, team_type: str = None, target_multiplier: float = None) -> float:
     """Monthly target = salary × multiplier."""
-    multiplier = TEAM_CONFIG.get(team_type, {}).get('multiplier', 7)
+    if target_multiplier is not None:
+        multiplier = target_multiplier
+    else:
+        multiplier = TEAM_CONFIG.get(team_type, {}).get('multiplier', 7) if team_type else 7.0
     return salary * multiplier
 
 
-def get_quarterly_target(salary: float, team_type: str) -> float:
+def get_quarterly_target(salary: float, team_type: str = None, target_multiplier: float = None) -> float:
     """Quarterly target = salary × multiplier × 3."""
-    return get_monthly_target(salary, team_type) * 3
+    return get_monthly_target(salary, team_type, target_multiplier) * 3
 
 
 # ---------------------------------------------------------------------------

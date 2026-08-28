@@ -53,6 +53,8 @@ def run_seed():
                     role ENUM('ADMIN', 'EMPLOYEE') NOT NULL DEFAULT 'EMPLOYEE',
                     team_type ENUM('CORE_TEAM', 'NORMAL_TEAM', 'RENT_TEAM') NULL,
                     salary DOUBLE NOT NULL DEFAULT 0,
+                    target_multiplier DOUBLE NOT NULL DEFAULT 7.0,
+                    commission_rate DOUBLE NOT NULL DEFAULT 0.20,
                     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
             """)

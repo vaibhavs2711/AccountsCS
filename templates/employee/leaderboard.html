@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+
+{% block title %}Leaderboard — Cityscope{% endblock %}
+
+{% block body %}
+<!-- Top Nav -->
+<div class="topnav">
+    <div class="brand">City<span>scope</span></div>
+    <div class="nav-links">
+        <a href="{{ url_for('employee_dashboard') }}" class="{% if request.path == '/employee' %}active{% endif %}">Dashboard</a>
+        <a href="{{ url_for('employee_leaderboard') }}" class="{% if request.path == '/employee/leaderboard' %}active{% endif %}">Leaderboard</a>
+        <a href="{{ url_for('employee_leaves') }}" class="{% if request.path == '/employee/leaves' %}active{% endif %}">Leaves</a>
+    </div>
+    <div class="nav-right">
+        <span class="user-name">{{ employee.name }}</span>
+        <form method="POST" action="{{ url_for('logout') }}" style="margin:0;">
+            <button type="submit" class="logout-btn">Logout</button>
+        </form>
+    </div>
+</div>
+
+<div class="emp-container">
+
+    <div class="card">
+        <div class="card-title">🏆 Top Performers</div>
+        
+        <!-- Tab Navigation -->
+        <ul class="nav nav-pills mb-3 justify-content-center" id="pills-tab" role="tablist" style="background: #f1f5f9; padding: 4px; border-radius: var(--radius);">
+            <li class="nav-item" role="presentation" style="flex: 1; text-align: center;">
+                <button class="nav-link active w-100" id="pills-monthly-tab" data-bs-toggle="pill" data-bs-target="#pills-monthly" type="button" role="tab" aria-controls="pills-monthly" aria-selected="true" style="font-size: 0.85rem; font-weight: 600; padding: 8px 12px; border-radius: 6px;">
+                    Monthly ({{ current_month_name }})
+                </button>
+            </li>
+            <li class="nav-item" role="presentation" style="flex: 1; text-align: center;">
+                <button class="nav-link w-100" id="pills-quarterly-tab" data-bs-toggle="pill" data-bs-target="#pills-quarterly" type="button" role="tab" aria-controls="pills-quarterly" aria-selected="false" style="font-size: 0.85rem; font-weight: 600; padding: 8px 12px; border-radius: 6px;">
+                    Quarterly (Q{{ current_quarter }})
+                </button>
+            </li>
+        </ul>
+
+        <!-- Tab Content -->
+        <div class="tab-content" id="pills-tabContent">
+            
+            <!-- Monthly Leaderboard -->
+            <div class="tab-pane fade show active" id="pills-monthly" role="tabpanel" aria-labelledby="pills-monthly-tab">
+                {% if leaderboard_monthly|length > 0 %}
+                    {% for entry in leaderboard_monthly %}
+                    <div class="leaderboard-item {% if entry.id == employee.id %}highlight{% endif %}" style="display: flex; align-items: center; padding: 12px; border-bottom: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 4px;">
+                        <span class="lb-rank {% if loop.index == 1 %}gold{% elif loop.index == 2 %}silver{% elif loop.index == 3 %}bronze{% endif %}" style="font-weight: 700; width: 36px; font-size: 1.1rem; text-align: center;">
+                            #{{ loop.index }}
+                        </span>
+                        <span class="lb-name" style="flex: 1; font-weight: 600; font-size: 0.9rem; margin-left: 12px;">
+                            {{ entry.name }}
+                            {% if entry.id == employee.id %}
+                                <span class="lb-you" style="background: var(--primary); color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; margin-left: 4px;">You</span>
+                            {% endif %}
+                        </span>
+                        <span class="lb-pct" style="color:{{ entry.color }}; font-weight: 700; font-size: 0.95rem;">
+                            {{ entry.percentage }}%
+                        </span>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <p class="text-muted-custom" style="font-size:0.85rem; padding:16px 0; text-align: center;">No data yet.</p>
+                {% endif %}
+            </div>
+
+            <!-- Quarterly Leaderboard -->
+            <div class="tab-pane fade" id="pills-quarterly" role="tabpanel" aria-labelledby="pills-quarterly-tab">
+                {% if leaderboard_quarterly|length > 0 %}
+                    {% for entry in leaderboard_quarterly %}
+                    <div class="leaderboard-item {% if entry.id == employee.id %}highlight{% endif %}" style="display: flex; align-items: center; padding: 12px; border-bottom: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 4px;">
+                        <span class="lb-rank {% if loop.index == 1 %}gold{% elif loop.index == 2 %}silver{% elif loop.index == 3 %}bronze{% endif %}" style="font-weight: 700; width: 36px; font-size: 1.1rem; text-align: center;">
+                            #{{ loop.index }}
+                        </span>
+                        <span class="lb-name" style="flex: 1; font-weight: 600; font-size: 0.9rem; margin-left: 12px;">
+                            {{ entry.name }}
+                            {% if entry.id == employee.id %}
+                                <span class="lb-you" style="background: var(--primary); color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; margin-left: 4px;">You</span>
+                            {% endif %}
+                        </span>
+                        <span class="lb-pct" style="color:{{ entry.color }}; font-weight: 700; font-size: 0.95rem;">
+                            {{ entry.percentage }}%
+                        </span>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <p class="text-muted-custom" style="font-size:0.85rem; padding:16px 0; text-align: center;">No data yet.</p>
+                {% endif %}
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+{% endblock %}

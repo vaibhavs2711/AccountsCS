@@ -534,6 +534,34 @@ button:active, .btn:active {
 
 .topnav .brand span { color: var(--accent); }
 
+.topnav .nav-links {
+    display: flex;
+    gap: 16px;
+    margin-left: 24px;
+    margin-right: auto;
+}
+
+.topnav .nav-links a {
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 0.88rem;
+    font-weight: 500;
+    text-decoration: none;
+    padding: 6px 12px;
+    border-radius: var(--radius);
+    transition: var(--transition);
+}
+
+.topnav .nav-links a:hover {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.topnav .nav-links a.active {
+    color: var(--accent);
+    background: rgba(255, 255, 255, 0.15);
+    font-weight: 600;
+}
+
 .topnav .nav-right {
     display: flex;
     align-items: center;
@@ -1068,4 +1096,66 @@ button:active, .btn:active {
     background: var(--accent);
     color: #fff;
     border-color: var(--accent);
+}
+
+/* =========================================
+   MOBILE OPTIMIZATIONS (Overrides)
+   ========================================= */
+@media (max-width: 768px) {
+    /* Admin Sidebar overrides */
+    .sidebar {
+        transform: translateX(-100%) !important;
+        transition: transform 0.3s ease;
+        width: 260px !important;
+    }
+    .sidebar.open {
+        transform: translateX(0) !important;
+    }
+    .admin-main {
+        margin-left: 0 !important;
+        padding: 60px 12px 20px !important;
+    }
+    
+    /* Tables */
+    .table-responsive {
+        border: 0;
+    }
+    .table tbody td, .table thead th {
+        padding: 10px 8px !important;
+        font-size: 0.8rem !important;
+    }
+
+    /* Top Navigation (Employee) */
+    .topnav {
+        flex-direction: column;
+        align-items: flex-start;
+        padding: 12px 16px;
+        gap: 12px;
+    }
+    .topnav .nav-links {
+        margin-left: 0;
+        width: 100%;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+    .topnav .nav-right {
+        width: 100%;
+        justify-content: space-between;
+    }
+    
+    /* Layout */
+    .stat-grid {
+        grid-template-columns: 1fr;
+    }
+    .comm-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    /* Employee Cards */
+    .emp-container {
+        padding: 12px 8px;
+    }
+    .card {
+        padding: 14px;
+    }
 }

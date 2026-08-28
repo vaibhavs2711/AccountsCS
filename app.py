@@ -114,7 +114,7 @@ def admin_dashboard():
         if not emp['team_type']:
             continue
         tc = TEAM_CONFIG.get(emp['team_type'], {})
-        target = get_monthly_target(emp['salary'], emp['team_type'])
+        target = get_monthly_target(emp['salary'], target_multiplier=emp['target_multiplier'])
         business = models.get_employee_business_for_month(emp['id'], month, year)
         pct = get_progress_percentage(business, target)
         leaderboard.append({
@@ -153,7 +153,7 @@ def admin_employees():
     employees = []
     for emp in employees_raw:
         tc = TEAM_CONFIG.get(emp['team_type'], {})
-        target = get_monthly_target(emp['salary'], emp['team_type']) if emp['team_type'] else 0
+        target = get_monthly_target(emp['salary'], target_multiplier=emp['target_multiplier']) if emp['team_type'] else 0
         employees.append({
             **emp,
             'team_label': tc.get('label', emp['team_type'] or '-'),
@@ -279,7 +279,7 @@ def admin_add_transaction():
 
     # Calculate commission
     net_commission, employee_commission = calculate_commission(
-        cs_commission, gst_applied, employee['team_type']
+        cs_commission, gst_applied, commission_rate=employee['commission_rate']
     )
 
     # Date fields
@@ -311,15 +311,21 @@ def admin_add_transaction():
 
     if transaction_id_str:
         models.update_transaction(int(transaction_id_str), transaction_data)
+        models.recalculate_employee_quarterly_commissions(employee_id, quarter, fy_year)
+        updated_txn = models.get_transaction_by_id(int(transaction_id_str))
+        final_comm = updated_txn['employee_commission'] if updated_txn else employee_commission
         session['txn_success'] = (
             f'Transaction for "{property_name}" updated. '
-            f'Employee commission: {format_inr(employee_commission)}'
+            f'Employee commission: {format_inr(final_comm)}'
         )
     else:
         models.create_transaction(transaction_data)
+        models.recalculate_employee_quarterly_commissions(employee_id, quarter, fy_year)
+        txns = models.get_transactions_by_employee(employee_id)
+        final_comm = txns[0]['employee_commission'] if txns else employee_commission
         session['txn_success'] = (
             f'Transaction for "{property_name}" added. '
-            f'Employee commission: {format_inr(employee_commission)}'
+            f'Employee commission: {format_inr(final_comm)}'
         )
     return redirect(url_for('admin_transactions'))
 
@@ -369,6 +375,15 @@ def admin_reject_leave(id):
     return redirect(url_for('admin_leaves'))
 
 
+@app.route('/admin/leaves/cancel/<int:id>', methods=['POST'])
+@admin_required
+def admin_cancel_leave(id):
+    """Cancel (delete) a leave request."""
+    models.delete_leave_request(id)
+    session['leave_success'] = 'Leave request cancelled successfully.'
+    return redirect(url_for('admin_leaves'))
+
+
 
 @app.route('/admin/employee/<int:id>')
 @admin_required
@@ -386,18 +401,18 @@ def admin_employee_detail(id):
     fy_year = get_fy_year(month, year)
 
     tc = TEAM_CONFIG.get(employee['team_type'], {})
-    team_label = tc.get('label', employee['team_type'] or '�')
-    multiplier = tc.get('multiplier', 7)
-    commission_rate = int(tc.get('commission_rate', 0.20) * 100)
+    team_label = tc.get('label', employee['team_type'] or '-')
+    multiplier = employee['target_multiplier']
+    commission_rate = int(employee['commission_rate'] * 100)
 
     comm = models.get_commission_summary(id)
 
-    m_target = get_monthly_target(employee['salary'], employee['team_type'])
+    m_target = get_monthly_target(employee['salary'], target_multiplier=multiplier)
     m_business = models.get_employee_business_for_month(id, month, year)
     m_pct = get_progress_percentage(m_business, m_target)
     m_remaining = max(0, m_target - m_business)
 
-    q_target = get_quarterly_target(employee['salary'], employee['team_type'])
+    q_target = get_quarterly_target(employee['salary'], target_multiplier=multiplier)
     q_business = models.get_employee_business_for_quarter(id, quarter, fy_year)
     q_pct = get_progress_percentage(q_business, q_target)
     q_remaining = max(0, q_target - q_business)
@@ -422,6 +437,9 @@ def admin_employee_detail(id):
     transactions = models.get_transactions_by_employee(id)
     leaves = models.get_leaves_by_employee(id)
 
+    success = session.pop('emp_success', None)
+    error = session.pop('emp_error', None)
+
     return render_template('admin/employee_detail.html',
         current_user=user,
         employee=employee,
@@ -443,7 +461,9 @@ def admin_employee_detail(id):
         month_name=MONTH_NAMES[month],
         year=year,
         quarter=quarter,
-        fy_year=fy_year
+        fy_year=fy_year,
+        success=success,
+        error=error
     )
 
 # ---------------------------------------------------------------------------
@@ -453,7 +473,7 @@ def admin_employee_detail(id):
 @app.route('/employee')
 @login_required
 def employee_dashboard():
-    """Employee dashboard - single-page with all sections."""
+    """Employee dashboard."""
     employee = get_current_user()
     if employee['role'] == 'ADMIN':
         return redirect(url_for('admin_dashboard'))
@@ -463,64 +483,31 @@ def employee_dashboard():
     quarter = get_quarter(month)
     fy_year = get_fy_year(month, year)
 
-    tc = TEAM_CONFIG.get(employee['team_type'], {})
-    team_label = tc.get('label', employee['team_type'] or '-')
-    multiplier = tc.get('multiplier', 7)
-    commission_rate = int(tc.get('commission_rate', 0.20) * 100)
+    multiplier = employee['target_multiplier']
 
     # Commission summary
     comm = models.get_commission_summary(employee['id'])
 
     # Monthly target
-    m_target = get_monthly_target(employee['salary'], employee['team_type'])
+    m_target = get_monthly_target(employee['salary'], target_multiplier=multiplier)
     m_business = models.get_employee_business_for_month(employee['id'], month, year)
     m_pct = get_progress_percentage(m_business, m_target)
     m_remaining = max(0, m_target - m_business)
 
     # Quarterly target
-    q_target = get_quarterly_target(employee['salary'], employee['team_type'])
+    q_target = get_quarterly_target(employee['salary'], target_multiplier=multiplier)
     q_business = models.get_employee_business_for_quarter(
         employee['id'], quarter, fy_year
     )
     q_pct = get_progress_percentage(q_business, q_target)
     q_remaining = max(0, q_target - q_business)
 
-    # Leaderboard (all employees, ranked by monthly progress)
-    all_employees = models.get_all_employees()
-    leaderboard = []
-    for emp in all_employees:
-        if not emp['team_type']:
-            continue
-        emp_target = get_monthly_target(emp['salary'], emp['team_type'])
-        emp_business = models.get_employee_business_for_month(emp['id'], month, year)
-        emp_pct = get_progress_percentage(emp_business, emp_target)
-        leaderboard.append({
-            'id': emp['id'],
-            'name': emp['name'],
-            'percentage': emp_pct,
-            'color': get_progress_color(emp_pct),
-        })
-    leaderboard.sort(key=lambda x: x['percentage'], reverse=True)
-
     # Transactions
     transactions = models.get_transactions_by_employee(employee['id'])
 
-    # Leave requests
-    leave_requests = models.get_leaves_by_employee(employee['id'], limit=10)
-
-    # Flash messages for leave form
-    leave_success = session.pop('leave_success_emp', None)
-    leave_error = session.pop('leave_error_emp', None)
-
-    # Tomorrow date for date picker min
-    tomorrow = (now + timedelta(days=1)).strftime('%Y-%m-%d')
-
     return render_template('employee/dashboard.html',
         employee=employee,
-        team_label=team_label,
         salary_fmt=format_inr(employee['salary']),
-        multiplier=multiplier,
-        commission_rate=commission_rate,
         pending_commission=format_inr(comm['pending']),
         received_commission=format_inr(comm['received']),
         current_month_name=MONTH_NAMES[month],
@@ -537,13 +524,33 @@ def employee_dashboard():
         quarterly_pct=q_pct,
         quarterly_color=get_progress_color(q_pct),
         quarterly_remaining=format_inr(q_remaining),
-        leaderboard=leaderboard,
         transactions=transactions,
         month_names=MONTH_NAMES,
+    )
+
+
+@app.route('/employee/leaves')
+@login_required
+def employee_leaves():
+    """Employee leaves page."""
+    employee = get_current_user()
+    if employee['role'] == 'ADMIN':
+        return redirect(url_for('admin_dashboard'))
+
+    now = datetime.now()
+    leave_requests = models.get_leaves_by_employee(employee['id'], limit=30)
+    leave_success = session.pop('leave_success_emp', None)
+    leave_error = session.pop('leave_error_emp', None)
+    tomorrow = (now + timedelta(days=1)).strftime('%Y-%m-%d')
+    today = now.strftime('%Y-%m-%d')
+
+    return render_template('employee/leaves.html',
+        employee=employee,
         leave_requests=leave_requests,
         leave_success=leave_success,
         leave_error=leave_error,
         tomorrow=tomorrow,
+        today=today,
     )
 
 
@@ -560,45 +567,246 @@ def employee_apply_leave():
 
     if not date_str:
         session['leave_error_emp'] = 'Date of leave is required.'
-        return redirect(url_for('employee_dashboard'))
+        return redirect(url_for('employee_leaves'))
 
     try:
         leave_date = datetime.strptime(date_str, '%Y-%m-%d')
     except ValueError:
         session['leave_error_emp'] = 'Invalid date format.'
-        return redirect(url_for('employee_dashboard'))
+        return redirect(url_for('employee_leaves'))
 
     now = datetime.now()
     hours_diff = (leave_date - now).total_seconds() / 3600
 
     if hours_diff < 72:
-        # Block: within 72 hours
         session['leave_error_emp'] = 'Leave requests must be submitted at least 72 hours in advance.'
-        # Still save it as blocked/rejected
         models.create_leave_request(
             employee_id=employee['id'],
             date_of_leave=date_str,
             reason=reason,
             blocked=True,
+            status='REJECTED'
         )
-        return redirect(url_for('employee_dashboard'))
+        return redirect(url_for('employee_leaves'))
 
     models.create_leave_request(
         employee_id=employee['id'],
         date_of_leave=date_str,
         reason=reason,
         blocked=False,
+        status='APPROVED'
     )
-    session['leave_success_emp'] = 'Leave request submitted successfully!'
-    return redirect(url_for('employee_dashboard'))
+    session['leave_success_emp'] = 'Leave request submitted and auto-approved!'
+    return redirect(url_for('employee_leaves'))
+
+
+@app.route('/employee/leave/cancel/<int:id>', methods=['POST'])
+@login_required
+def employee_cancel_leave(id):
+    """Cancel a leave request if it belongs to the employee."""
+    employee = get_current_user()
+    if employee['role'] == 'ADMIN':
+        return redirect(url_for('admin_dashboard'))
+
+    # Basic security check: ensure the leave belongs to the current employee
+    leaves = models.get_leaves_by_employee(employee['id'], limit=100)
+    target_leave = next((l for l in leaves if l['id'] == id), None)
+
+    if not target_leave:
+        session['leave_error_emp'] = 'Leave request not found or access denied.'
+        return redirect(url_for('employee_leaves'))
+
+    # Only allow canceling APPROVED leaves
+    if target_leave['status'] != 'APPROVED':
+        session['leave_error_emp'] = 'Only approved leaves can be cancelled.'
+        return redirect(url_for('employee_leaves'))
+
+    # Optional: only allow canceling future leaves
+    if target_leave['date_of_leave'] < datetime.now().date():
+        session['leave_error_emp'] = 'Cannot cancel past leave requests.'
+        return redirect(url_for('employee_leaves'))
+
+    models.delete_leave_request(id)
+    session['leave_success_emp'] = 'Leave request cancelled successfully.'
+    return redirect(url_for('employee_leaves'))
+
+
+@app.route('/employee/leaderboard')
+@login_required
+def employee_leaderboard():
+    """Employee leaderboard page."""
+    employee = get_current_user()
+    if employee['role'] == 'ADMIN':
+        return redirect(url_for('admin_dashboard'))
+
+    now = datetime.now()
+    month, year = now.month, now.year
+    quarter = get_quarter(month)
+    fy_year = get_fy_year(month, year)
+
+    all_employees = models.get_all_employees()
+    leaderboard_monthly = []
+    leaderboard_quarterly = []
+
+    for emp in all_employees:
+        if not emp['team_type']:
+            continue
+        
+        m_target = get_monthly_target(emp['salary'], target_multiplier=emp['target_multiplier'])
+        m_business = models.get_employee_business_for_month(emp['id'], month, year)
+        m_pct = get_progress_percentage(m_business, m_target)
+        leaderboard_monthly.append({
+            'id': emp['id'],
+            'name': emp['name'],
+            'percentage': m_pct,
+            'color': get_progress_color(m_pct),
+        })
+
+        q_target = get_quarterly_target(emp['salary'], target_multiplier=emp['target_multiplier'])
+        q_business = models.get_employee_business_for_quarter(emp['id'], quarter, fy_year)
+        q_pct = get_progress_percentage(q_business, q_target)
+        leaderboard_quarterly.append({
+            'id': emp['id'],
+            'name': emp['name'],
+            'percentage': q_pct,
+            'color': get_progress_color(q_pct),
+        })
+
+    leaderboard_monthly.sort(key=lambda x: x['percentage'], reverse=True)
+    leaderboard_quarterly.sort(key=lambda x: x['percentage'], reverse=True)
+
+    return render_template('employee/leaderboard.html',
+        employee=employee,
+        current_month_name=MONTH_NAMES[month],
+        current_year=year,
+        current_quarter=quarter,
+        leaderboard_monthly=leaderboard_monthly,
+        leaderboard_quarterly=leaderboard_quarterly,
+    )
+
+
+@app.route('/admin/leaderboard')
+@admin_required
+def admin_leaderboard():
+    """Admin dedicated leaderboard page."""
+    user = get_current_user()
+    now = datetime.now()
+    month, year = now.month, now.year
+    quarter = get_quarter(month)
+    fy_year = get_fy_year(month, year)
+
+    employees = models.get_all_employees()
+    leaderboard_monthly = []
+    leaderboard_quarterly = []
+
+    for emp in employees:
+        if not emp['team_type']:
+            continue
+        tc = TEAM_CONFIG.get(emp['team_type'], {})
+        
+        m_target = get_monthly_target(emp['salary'], target_multiplier=emp['target_multiplier'])
+        m_business = models.get_employee_business_for_month(emp['id'], month, year)
+        m_pct = get_progress_percentage(m_business, m_target)
+        leaderboard_monthly.append({
+            'id': emp['id'],
+            'name': emp['name'],
+            'team_label': tc.get('label', emp['team_type']),
+            'business_done': m_business,
+            'target': m_target,
+            'percentage': m_pct,
+            'color': get_progress_color(m_pct),
+        })
+
+        q_target = get_quarterly_target(emp['salary'], target_multiplier=emp['target_multiplier'])
+        q_business = models.get_employee_business_for_quarter(emp['id'], quarter, fy_year)
+        q_pct = get_progress_percentage(q_business, q_target)
+        leaderboard_quarterly.append({
+            'id': emp['id'],
+            'name': emp['name'],
+            'team_label': tc.get('label', emp['team_type']),
+            'business_done': q_business,
+            'target': q_target,
+            'percentage': q_pct,
+            'color': get_progress_color(q_pct),
+        })
+
+    leaderboard_monthly.sort(key=lambda x: x['percentage'], reverse=True)
+    leaderboard_quarterly.sort(key=lambda x: x['percentage'], reverse=True)
+
+    return render_template('admin/leaderboard.html',
+        current_user=user,
+        current_month_name=MONTH_NAMES[month],
+        current_year=year,
+        current_quarter=quarter,
+        leaderboard_monthly=leaderboard_monthly,
+        leaderboard_quarterly=leaderboard_quarterly,
+    )
+
+
+@app.route('/admin/employee/<int:id>/update', methods=['POST'])
+@admin_required
+def admin_update_employee(id):
+    """Update employee settings (salary, target multiplier, commission rate)."""
+    name = request.form.get('name', '').strip()
+    email = request.form.get('email', '').strip()
+    salary_str = request.form.get('salary', '0')
+    team_type = request.form.get('team_type', '')
+    target_multiplier_str = request.form.get('target_multiplier', '7.0')
+    commission_rate_str = request.form.get('commission_rate', '20.0')
+
+    # Get optional error flash location
+    success_redirect = request.form.get('success_redirect', '')
+
+    if not all([name, email, team_type]):
+        session['emp_error'] = 'Name, email and team type are required.'
+        return redirect(url_for('admin_employee_detail', id=id))
+
+    try:
+        salary = float(salary_str)
+        target_multiplier = float(target_multiplier_str)
+        commission_rate = float(commission_rate_str) / 100.0
+    except ValueError:
+        session['emp_error'] = 'Invalid numeric value(s).'
+        return redirect(url_for('admin_employee_detail', id=id))
+
+    # Check if email exists for another user
+    existing = models.get_user_by_email(email)
+    if existing and existing['id'] != id:
+        session['emp_error'] = f'Email "{email}" is already in use by another user.'
+        return redirect(url_for('admin_employee_detail', id=id))
+
+    data = {
+        'name': name,
+        'email': email,
+        'salary': salary,
+        'team_type': team_type,
+        'target_multiplier': target_multiplier,
+        'commission_rate': commission_rate
+    }
+    models.update_user(id, data)
+    
+    # Recalculate quarterly commissions since details changed
+    now = datetime.now()
+    quarter = get_quarter(now.month)
+    fy_year = get_fy_year(now.month, now.year)
+    models.recalculate_employee_quarterly_commissions(id, quarter, fy_year)
+
+    session['emp_success'] = 'Employee details updated successfully!'
+    return redirect(url_for('admin_employee_detail', id=id))
 
 
 @app.route('/admin/transactions/<int:id>/delete', methods=['POST'])
 @admin_required
 def admin_delete_transaction(id):
     """Delete a transaction."""
-    models.delete_transaction(id)
-    session['txn_success'] = 'Transaction deleted successfully.'
+    txn = models.get_transaction_by_id(id)
+    if txn:
+        models.delete_transaction(id)
+        fy_year = get_fy_year(txn['month'], txn['year'])
+        models.recalculate_employee_quarterly_commissions(txn['employee_id'], txn['quarter'], fy_year)
+        session['txn_success'] = 'Transaction deleted successfully.'
+    else:
+        session['txn_error'] = 'Transaction not found.'
     return redirect(url_for('admin_transactions'))
 
 # ---------------------------------------------------------------------------

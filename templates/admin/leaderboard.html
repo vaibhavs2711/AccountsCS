@@ -1,0 +1,135 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Leaderboard — Cityscope Admin{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h2>🏆 Performance Leaderboard</h2>
+    <div class="page-meta">Compare monthly and quarterly employee targets & business done</div>
+</div>
+
+<div class="card">
+    <!-- Tab Navigation -->
+    <ul class="nav nav-pills mb-4 justify-content-center" id="pills-tab" role="tablist" style="background: #f1f5f9; padding: 4px; border-radius: var(--radius); max-width: 400px; margin: 0 auto 20px;">
+        <li class="nav-item" role="presentation" style="flex: 1; text-align: center;">
+            <button class="nav-link active w-100" id="pills-admin-monthly-tab" data-bs-toggle="pill" data-bs-target="#pills-admin-monthly" type="button" role="tab" aria-controls="pills-admin-monthly" aria-selected="true" style="font-size: 0.85rem; font-weight: 600; padding: 8px 12px; border-radius: 6px;">
+                Monthly ({{ current_month_name }})
+            </button>
+        </li>
+        <li class="nav-item" role="presentation" style="flex: 1; text-align: center;">
+            <button class="nav-link w-100" id="pills-admin-quarterly-tab" data-bs-toggle="pill" data-bs-target="#pills-admin-quarterly" type="button" role="tab" aria-controls="pills-admin-quarterly" aria-selected="false" style="font-size: 0.85rem; font-weight: 600; padding: 8px 12px; border-radius: 6px;">
+                Quarterly (Q{{ current_quarter }})
+            </button>
+        </li>
+    </ul>
+
+    <!-- Tab Content -->
+    <div class="tab-content" id="pills-tabContent">
+        
+        <!-- Monthly Leaderboard Tab -->
+        <div class="tab-pane fade show active" id="pills-admin-monthly" role="tabpanel" aria-labelledby="pills-admin-monthly-tab">
+            {% if leaderboard_monthly|length > 0 %}
+            <div class="table-responsive">
+                <table class="table mb-0">
+                    <thead>
+                        <tr>
+                            <th style="width: 60px;">Rank</th>
+                            <th>Employee</th>
+                            <th>Team Type</th>
+                            <th>Business Done</th>
+                            <th>Monthly Target</th>
+                            <th>Achievement</th>
+                            <th>Progress</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for entry in leaderboard_monthly %}
+                        <tr>
+                            <td>
+                                <strong class="lb-rank {% if loop.index == 1 %}gold{% elif loop.index == 2 %}silver{% elif loop.index == 3 %}bronze{% endif %}" style="font-size: 1.1rem; display: inline-block; width: auto; color: {% if loop.index > 3 %}var(--text-muted){% endif %};">
+                                    #{{ loop.index }}
+                                </strong>
+                            </td>
+                            <td>
+                                <a href="{{ url_for('admin_employee_detail', id=entry.id) }}" style="font-weight: 600; color: var(--primary);">
+                                    {{ entry.name }}
+                                </a>
+                            </td>
+                            <td>
+                                <span class="badge-pending" style="background: #eff6ff; color: var(--accent); padding: 4px 10px;">{{ entry.team_label }}</span>
+                            </td>
+                            <td><strong>{{ format_inr(entry.business_done) }}</strong></td>
+                            <td>{{ format_inr(entry.target) }}</td>
+                            <td>
+                                <span style="font-weight: 700; color: {{ entry.color }};">{{ entry.percentage }}%</span>
+                            </td>
+                            <td>
+                                <div class="progress-track thin" style="width: 120px;">
+                                    <div class="progress-fill" style="width: {{ [entry.percentage, 100]|min }}%; background: {{ entry.color }};"></div>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="text-muted-custom" style="padding: 20px 0; text-align: center;">No data available for this month.</p>
+            {% endif %}
+        </div>
+
+        <!-- Quarterly Leaderboard Tab -->
+        <div class="tab-pane fade" id="pills-admin-quarterly" role="tabpanel" aria-labelledby="pills-admin-quarterly-tab">
+            {% if leaderboard_quarterly|length > 0 %}
+            <div class="table-responsive">
+                <table class="table mb-0">
+                    <thead>
+                        <tr>
+                            <th style="width: 60px;">Rank</th>
+                            <th>Employee</th>
+                            <th>Team Type</th>
+                            <th>Business Done</th>
+                            <th>Quarterly Target</th>
+                            <th>Achievement</th>
+                            <th>Progress</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for entry in leaderboard_quarterly %}
+                        <tr>
+                            <td>
+                                <strong class="lb-rank {% if loop.index == 1 %}gold{% elif loop.index == 2 %}silver{% elif loop.index == 3 %}bronze{% endif %}" style="font-size: 1.1rem; display: inline-block; width: auto; color: {% if loop.index > 3 %}var(--text-muted){% endif %};">
+                                    #{{ loop.index }}
+                                </strong>
+                            </td>
+                            <td>
+                                <a href="{{ url_for('admin_employee_detail', id=entry.id) }}" style="font-weight: 600; color: var(--primary);">
+                                    {{ entry.name }}
+                                </a>
+                            </td>
+                            <td>
+                                <span class="badge-pending" style="background: #eff6ff; color: var(--accent); padding: 4px 10px;">{{ entry.team_label }}</span>
+                            </td>
+                            <td><strong>{{ format_inr(entry.business_done) }}</strong></td>
+                            <td>{{ format_inr(entry.target) }}</td>
+                            <td>
+                                <span style="font-weight: 700; color: {{ entry.color }};">{{ entry.percentage }}%</span>
+                            </td>
+                            <td>
+                                <div class="progress-track thin" style="width: 120px;">
+                                    <div class="progress-fill" style="width: {{ [entry.percentage, 100]|min }}%; background: {{ entry.color }};"></div>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="text-muted-custom" style="padding: 20px 0; text-align: center;">No data available for this quarter.</p>
+            {% endif %}
+        </div>
+
+    </div>
+</div>
+{% endblock %}
