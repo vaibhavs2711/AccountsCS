@@ -97,6 +97,13 @@
                 <div class="txn-amounts">
                     Deal: {{ format_inr(t.cityscope_commission) }} |
                     Your Commission: <strong>{{ format_inr(t.employee_commission) }}</strong>
+                    {% if t.net_commission > 0 %}
+                        {% set eff_pct = (t.employee_commission / t.net_commission * 100) | round(1) %}
+                        {% set base_pct = 30 if t.team_type == 'CORE_TEAM' else 20 %}
+                        <span style="font-size:0.75rem; color: {% if eff_pct < base_pct %}var(--danger){% else %}var(--success){% endif %}; font-weight:600;">
+                            ({{ eff_pct }}% {% if eff_pct < base_pct %}scaled{% endif %})
+                        </span>
+                    {% endif %}
                     {% if t.gst_applied %}
                         <span class="gst-note">(GST applied)</span>
                     {% endif %}

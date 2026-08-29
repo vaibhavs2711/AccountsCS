@@ -230,10 +230,23 @@
                     </td>
                     <td data-label="Net Commission" style="white-space: nowrap;">{{ format_inr(t.net_commission) }}</td>
                     <td data-label="Emp. Share" style="white-space: nowrap;">
-                        {% set commission_percent = 30 if t.team_type == 'CORE_TEAM' else 20 %}
                         <strong class="text-primary-custom">{{ format_inr(t.employee_commission) }}</strong>
                         <div style="margin-top: 4px;">
-                            <span class="badge-rejected" style="display: inline-block; white-space: nowrap; font-size:0.7rem; padding: 2px 6px; border: 1px solid var(--danger);">{{ commission_percent }}%</span>
+                            {% if t.net_commission > 0 %}
+                                {% set eff_pct = (t.employee_commission / t.net_commission * 100) | round(1) %}
+                                {% set base_pct = 30 if t.team_type == 'CORE_TEAM' else 20 %}
+                                {% if eff_pct < base_pct %}
+                                    <span class="badge-rejected" style="display: inline-block; white-space: nowrap; font-size:0.7rem; padding: 2px 6px; border: 1px solid var(--danger); background-color: #fef2f2; color: #ef4444;" class="custom-tooltip" data-title="Scaled down from {{ base_pct }}% due to target progress.">
+                                        {{ eff_pct }}% (scaled)
+                                    </span>
+                                {% else %}
+                                    <span class="badge-rejected" style="display: inline-block; white-space: nowrap; font-size:0.7rem; padding: 2px 6px; border: 1px solid var(--success); background-color: #f0fdf4; color: #15803d;">
+                                        {{ eff_pct }}%
+                                    </span>
+                                {% endif %}
+                            {% else %}
+                                —
+                            {% endif %}
                         </div>
                     </td>
                     <td data-label="Buyer" style="white-space: nowrap; line-height: 1.4; font-size: 0.8rem;">
