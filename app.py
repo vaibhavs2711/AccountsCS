@@ -248,6 +248,7 @@ def admin_add_transaction():
     employee_id_str = request.form.get('employee_id', '')
     property_id = request.form.get('property_id', '').strip()
     property_name = request.form.get('property_name', '').strip()
+    basic_price_str = request.form.get('basic_price', '0')
     transaction_date_str = request.form.get('transaction_date', '').strip()
     cs_commission_str = request.form.get('cityscope_commission', '')
     buyer_amount_str = request.form.get('buyer_commission_amount', '')
@@ -274,6 +275,7 @@ def admin_add_transaction():
         cs_commission = float(cs_commission_str) if cs_commission_str else 0.0
         buyer_amount = float(buyer_amount_str) if buyer_amount_str else 0.0
         seller_amount = float(seller_amount_str) if seller_amount_str else 0.0
+        basic_price = float(basic_price_str) if basic_price_str else 0.0
     except ValueError:
         session['txn_error'] = 'Invalid numeric value(s).'
         return redirect(url_for('admin_transactions'))
@@ -340,6 +342,7 @@ def admin_add_transaction():
     transaction_data = {
         'property_id': property_id,
         'property_name': property_name,
+        'basic_price': basic_price,
         'cityscope_commission': cs_commission,
         'buyer_commission_amount': buyer_amount,
         'buyer_commission_received': buyer_received,

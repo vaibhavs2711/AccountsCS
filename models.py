@@ -104,16 +104,16 @@ def create_transaction(data: dict):
         with db.cursor() as cur:
             cur.execute(
                 """INSERT INTO transactions
-                   (property_id, property_name, 
+                   (property_id, property_name, basic_price,
                     cityscope_commission, buyer_commission_amount,
                     buyer_commission_received, buyer_commission_date,
                     seller_commission_amount, seller_commission_received,
                     seller_commission_date, gst_applied, net_commission,
                     employee_commission, payment_status, transaction_date, month, year, quarter,
                     employee_id)
-                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
                 (
-                    data['property_id'], data['property_name'],
+                    data['property_id'], data['property_name'], data.get('basic_price', 0),
                     data['cityscope_commission'], data.get('buyer_commission_amount', 0),
                     data.get('buyer_commission_received', 0), data.get('buyer_commission_date') or None,
                     data.get('seller_commission_amount', 0),
@@ -135,7 +135,7 @@ def update_transaction(transaction_id: int, data: dict):
         with db.cursor() as cur:
             cur.execute(
                 """UPDATE transactions SET
-                    property_id = %s, property_name = %s,
+                    property_id = %s, property_name = %s, basic_price = %s,
                     cityscope_commission = %s, buyer_commission_amount = %s,
                     buyer_commission_received = %s, buyer_commission_date = %s,
                     seller_commission_amount = %s, seller_commission_received = %s,
@@ -144,7 +144,7 @@ def update_transaction(transaction_id: int, data: dict):
                     employee_id = %s, payment_status = %s
                    WHERE id = %s""",
                 (
-                    data['property_id'], data['property_name'],
+                    data['property_id'], data['property_name'], data.get('basic_price', 0),
                     data['cityscope_commission'], data.get('buyer_commission_amount', 0),
                     data.get('buyer_commission_received', 0), data.get('buyer_commission_date') or None,
                     data.get('seller_commission_amount', 0),

@@ -80,9 +80,18 @@
                     value="{{ request.form.get('property_name', '') }}">
             </div>
             <div style="flex:1;">
-                <label class="form-label" style="font-size:0.85rem; font-weight:600;">Date of Deal</label>
-                <input type="date" class="form-control" name="transaction_date" required
-                    value="{{ request.form.get('transaction_date', '') }}">
+                <div class="d-flex gap-3 form-row-custom">
+                    <div style="flex:1;">
+                        <label class="form-label" style="font-size:0.85rem; font-weight:600;">Basic Price of Property ₹</label>
+                        <input type="number" class="form-control" name="basic_price" min="0" step="1" placeholder="0"
+                            value="{{ request.form.get('basic_price', '') }}">
+                    </div>
+                    <div style="flex:1;">
+                        <label class="form-label" style="font-size:0.85rem; font-weight:600;">Date of Deal</label>
+                        <input type="date" class="form-control" name="transaction_date" required
+                            value="{{ request.form.get('transaction_date', '') }}">
+                    </div>
+                </div>
             </div>
         </div>
         <div class="d-flex gap-3 mb-3 form-row-custom">
@@ -199,6 +208,9 @@
                         <div style="display:flex; align-items:center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
                             <strong style="color:var(--primary); font-size:0.8rem;">{{ t.property_name }}</strong>
                         </div>
+                        {% if t.basic_price %}
+                        <div style="font-size: 0.72rem; color: var(--text-muted);">Val: {{ format_inr(t.basic_price) }}</div>
+                        {% endif %}
                     </td>
                     <td data-label="CSID" style="color:var(--text-muted); font-size:0.75rem; white-space: nowrap;">{{ t.property_id }}</td>
                     <td data-label="Employee" style="white-space: nowrap;">
@@ -257,7 +269,7 @@
                     </td>
                     <td class="no-pdf" data-label="Action" style="white-space: nowrap;">
                         <div style="display:flex; align-items:center; gap:8px; flex-wrap: nowrap;">
-                            <button type="button" class="btn-primary-sm" style="background:#0f172a; border-radius:20px; padding:4px 14px; white-space: nowrap; flex-shrink: 0; height: auto; min-width: max-content;" onclick='editTransaction({{ t.id }}, {{ t.employee_id }}, "{{ t.property_id|replace('"', '\\"') }}", "{{ t.property_name|replace('"', '\\"') }}", "{{ t.transaction_date.strftime('%Y-%m-%d') if t.transaction_date else '' }}", {{ t.cityscope_commission }}, {{ t.buyer_commission_amount or 0 }}, {{ t.seller_commission_amount or 0 }}, {{ 1 if t.gst_applied else 0 }}, {{ t.buyer_commission_received or 0 }}, "{{ t.buyer_commission_date.strftime('%Y-%m-%d') if t.buyer_commission_date else '' }}", {{ t.seller_commission_received or 0 }}, "{{ t.seller_commission_date.strftime('%Y-%m-%d') if t.seller_commission_date else '' }}")'>Edit</button>
+                            <button type="button" class="btn-primary-sm" style="background:#0f172a; border-radius:20px; padding:4px 14px; white-space: nowrap; flex-shrink: 0; height: auto; min-width: max-content;" onclick='editTransaction({{ t.id }}, {{ t.employee_id }}, "{{ t.property_id|replace('"', '\\"') }}", "{{ t.property_name|replace('"', '\\"') }}", "{{ t.transaction_date.strftime('%Y-%m-%d') if t.transaction_date else '' }}", {{ t.cityscope_commission }}, {{ t.buyer_commission_amount or 0 }}, {{ t.seller_commission_amount or 0 }}, {{ 1 if t.gst_applied else 0 }}, {{ t.buyer_commission_received or 0 }}, "{{ t.buyer_commission_date.strftime('%Y-%m-%d') if t.buyer_commission_date else '' }}", {{ t.seller_commission_received or 0 }}, "{{ t.seller_commission_date.strftime('%Y-%m-%d') if t.seller_commission_date else '' }}", {{ t.basic_price or 0 }})'>Edit</button>
                             <div class="dropdown-wrapper" style="position:relative;">
                                 <span class="action-menu" onclick="toggleDropdown(this)" style="flex-shrink:0; cursor:pointer;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"></circle><circle cx="12" cy="5" r="1"></circle><circle cx="12" cy="19" r="1"></circle></svg></span>
                                 <div class="dropdown-menu-custom" style="display:none; position:absolute; right:0; top:100%; background:#fff; border:1px solid #eee; border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,0.1); z-index:100; min-width:140px; padding:4px 0;">
@@ -355,6 +367,19 @@ function openAddModal() {
     document.getElementById('buyer-payments-container').innerHTML = '';
     document.getElementById('seller-payments-container').innerHTML = '';
     
+    // Reset basic price input
+    document.querySelector('input[name="basic_price"]').value = '';
+    
+    // Unlock agreed amounts
+    var b_amt = document.querySelector('input[name="buyer_commission_amount"]');
+    var s_amt = document.querySelector('input[name="seller_commission_amount"]');
+    b_amt.readOnly = false;
+    b_amt.style.backgroundColor = '';
+    b_amt.style.cursor = '';
+    s_amt.readOnly = false;
+    s_amt.style.backgroundColor = '';
+    s_amt.style.cursor = '';
+    
     // Set default date to today
     const today = new Date();
     const yyyy = today.getFullYear();
@@ -374,7 +399,7 @@ function updateTotalCommission() {
 
 
 
-function editTransaction(id, employee_id, property_id, property_name, transaction_date, cs_commission, buyer_commission, seller_commission, gst_applied, buyer_received, buyer_date, seller_received, seller_date) {
+function editTransaction(id, employee_id, property_id, property_name, transaction_date, cs_commission, buyer_commission, seller_commission, gst_applied, buyer_received, buyer_date, seller_received, seller_date, basic_price) {
     document.getElementById('form-title').innerText = 'Edit Transaction';
     document.getElementById('transaction_id').value = id;
     
@@ -386,11 +411,22 @@ function editTransaction(id, employee_id, property_id, property_name, transactio
     
     document.querySelector('input[name="property_id"]').value = property_id;
     document.querySelector('input[name="property_name"]').value = property_name;
+    document.querySelector('input[name="basic_price"]').value = basic_price || '';
     document.querySelector('input[name="transaction_date"]').value = transaction_date;
     document.querySelector('input[name="cityscope_commission"]').value = cs_commission;
     document.querySelector('input[name="buyer_commission_amount"]').value = buyer_commission || '';
     document.querySelector('input[name="seller_commission_amount"]').value = seller_commission || '';
     document.querySelector('input[name="gst_applied"]').checked = (gst_applied === 1);
+    
+    // Lock agreed amounts
+    var b_amt = document.querySelector('input[name="buyer_commission_amount"]');
+    var s_amt = document.querySelector('input[name="seller_commission_amount"]');
+    b_amt.readOnly = true;
+    b_amt.style.backgroundColor = '#f1f5f9';
+    b_amt.style.cursor = 'not-allowed';
+    s_amt.readOnly = true;
+    s_amt.style.backgroundColor = '#f1f5f9';
+    s_amt.style.cursor = 'not-allowed';
     
     // Populate installments dynamically
     document.getElementById('buyer-payments-container').innerHTML = '';

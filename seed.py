@@ -66,6 +66,7 @@ def run_seed():
                     id INT AUTO_INCREMENT PRIMARY KEY,
                     property_id VARCHAR(255) NOT NULL,
                     property_name VARCHAR(255) NOT NULL,
+                    basic_price DOUBLE NOT NULL DEFAULT 0,
                     cityscope_commission DOUBLE NOT NULL,
                     buyer_commission_amount DOUBLE NOT NULL DEFAULT 0,
                     buyer_commission_received DOUBLE NOT NULL DEFAULT 0,
@@ -95,6 +96,11 @@ def run_seed():
                 MODIFY COLUMN payment_status ENUM('PENDING', 'PARTIAL', 'DONE') NOT NULL DEFAULT 'PENDING'
             """)
             
+            cur.execute("SHOW COLUMNS FROM transactions LIKE 'basic_price'")
+            if cur.fetchone() is None:
+                cur.execute("ALTER TABLE transactions ADD COLUMN basic_price DOUBLE NOT NULL DEFAULT 0")
+                print("✔ Column 'basic_price' migrated.")
+
             cur.execute("SHOW COLUMNS FROM transactions LIKE 'buyer_commission_received'")
             if cur.fetchone() is None:
                 cur.execute("ALTER TABLE transactions ADD COLUMN buyer_commission_received DOUBLE NOT NULL DEFAULT 0")

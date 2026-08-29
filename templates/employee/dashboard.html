@@ -101,6 +101,22 @@
                         <span class="gst-note">(GST applied)</span>
                     {% endif %}
                 </div>
+                <div class="txn-amounts" style="margin-top: 8px; font-size: 0.8rem; color: var(--text-muted); border-top: 1px dashed #e2e8f0; padding-top: 8px;">
+                    <div style="display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; line-height: 1.5;">
+                        <div>
+                            <strong>Buyer Brokerage:</strong> 
+                            Total: {{ format_inr(t.buyer_commission_amount) }} | 
+                            Recv: <span style="color:var(--success); font-weight:600;">{{ format_inr(t.buyer_commission_received) }}</span> | 
+                            Pend: <span style="color:var(--danger); font-weight:600;">{{ format_inr(t.buyer_commission_amount - t.buyer_commission_received) }}</span>
+                        </div>
+                        <div>
+                            <strong>Seller Brokerage:</strong> 
+                            Total: {{ format_inr(t.seller_commission_amount) }} | 
+                            Recv: <span style="color:var(--success); font-weight:600;">{{ format_inr(t.seller_commission_received) }}</span> | 
+                            Pend: <span style="color:var(--danger); font-weight:600;">{{ format_inr(t.seller_commission_amount - t.seller_commission_received) }}</span>
+                        </div>
+                    </div>
+                </div>
             </div>
             {% endfor %}
         {% else %}

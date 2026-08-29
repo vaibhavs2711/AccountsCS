@@ -239,7 +239,7 @@ button:active, .btn:active {
 .modal-content {
     background: var(--surface);
     width: 90%;
-    max-width: 700px;
+    max-width: 900px;
     max-height: 90vh;
     overflow-y: auto;
     border-radius: var(--radius);
