@@ -1145,7 +1145,8 @@ button:active, .btn:active {
     
     /* Layout */
     .stat-grid {
-        grid-template-columns: 1fr;
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 12px !important;
     }
     .comm-grid {
         grid-template-columns: 1fr;
@@ -1159,3 +1160,199 @@ button:active, .btn:active {
         padding: 14px;
     }
 }
+
+/* =========================================
+   LAPTOP VIEW TABLE OVERRIDES (769px - 1200px)
+   ========================================= */
+@media (min-width: 769px) and (max-width: 1200px) {
+    .table tbody td, .table thead th {
+        padding: 10px 8px !important;
+        font-size: 0.78rem !important;
+    }
+    .admin-main {
+        padding: 24px 16px !important;
+    }
+}
+
+/* =========================================
+   MOBILE TABLE-TO-CARD STACKING (<= 768px)
+   ========================================= */
+@media (max-width: 768px) {
+    .table-responsive-stack table,
+    .table-responsive-stack thead,
+    .table-responsive-stack tbody,
+    .table-responsive-stack th,
+    .table-responsive-stack td,
+    .table-responsive-stack tr {
+        display: block !important;
+        width: 100% !important;
+    }
+    
+    .table-responsive-stack thead tr {
+        position: absolute !important;
+        top: -9999px !important;
+        left: -9999px !important;
+        opacity: 0 !important;
+    }
+    
+    .table-responsive-stack tr {
+        margin-bottom: 16px !important;
+        border: 1px solid var(--border) !important;
+        border-radius: var(--radius) !important;
+        background: var(--surface) !important;
+        padding: 12px 14px !important;
+        box-shadow: var(--shadow) !important;
+    }
+    
+    .table-responsive-stack td {
+        border: none !important;
+        border-bottom: 1px solid #f1f5f9 !important;
+        position: relative !important;
+        padding: 8px 0 !important;
+        text-align: right !important;
+        white-space: normal !important;
+        display: flex !important;
+        justify-content: space-between !important;
+        align-items: center !important;
+        font-size: 0.8rem !important;
+        min-height: 38px !important;
+    }
+    
+    .table-responsive-stack td:last-child {
+        border-bottom: none !important;
+    }
+    
+    .table-responsive-stack td::before {
+        content: attr(data-label) !important;
+        font-weight: 700 !important;
+        color: var(--text-muted) !important;
+        text-align: left !important;
+        font-size: 0.72rem !important;
+        text-transform: uppercase !important;
+        margin-right: 12px !important;
+    }
+
+    /* Stack buttons or forms in action column */
+    .table-responsive-stack td .d-flex {
+        justify-content: flex-end !important;
+        width: 100% !important;
+    }
+}
+
+/* =========================================
+   EMPLOYEE DETAIL RESPONSIVE HEADER
+   ========================================= */
+.emp-header-card {
+    display: flex !important;
+    flex-direction: row !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    padding: 32px !important;
+    position: relative !important;
+    overflow: hidden !important;
+    background: #ffffff !important;
+}
+
+.emp-header-info {
+    display: flex !important;
+    align-items: center !important;
+    gap: 24px !important;
+    z-index: 1 !important;
+}
+
+.emp-meta-row {
+    display: flex !important;
+    align-items: center !important;
+    gap: 16px !important;
+}
+
+.emp-header-stats {
+    z-index: 1 !important;
+    display: flex !important;
+    align-items: stretch !important;
+    background: #f8fafc !important;
+    border: 1px solid #e2e8f0 !important;
+    border-radius: 16px !important;
+    padding: 24px 40px !important;
+    gap: 32px !important;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.02) !important;
+}
+
+.emp-header-divider {
+    width: 1px !important;
+    height: 28px !important;
+    background-color: #cbd5e1 !important;
+    display: block !important;
+}
+
+@media (max-width: 900px) {
+    .emp-header-card {
+        flex-direction: column !important;
+        align-items: center !important;
+        text-align: center !important;
+        padding: 20px !important;
+        gap: 20px !important;
+    }
+    
+    .emp-header-info {
+        flex-direction: column !important;
+        align-items: center !important;
+        gap: 16px !important;
+    }
+    
+    .emp-meta-row {
+        flex-direction: column !important;
+        align-items: center !important;
+        gap: 12px !important;
+    }
+    
+    .emp-header-divider {
+        display: none !important;
+    }
+    
+    .emp-header-stats {
+        width: 100% !important;
+        padding: 16px 20px !important;
+        gap: 16px !important;
+        justify-content: space-around !important;
+    }
+}
+
+/* =========================================
+   TRANSACTIONS SEARCH / SORT HEADER
+   ========================================= */
+.card-header-responsive {
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    flex-wrap: wrap !important;
+    gap: 16px !important;
+}
+
+.search-input-wrapper {
+    flex: 1 !important;
+    max-width: 350px !important;
+    position: relative !important;
+}
+
+@media (max-width: 768px) {
+    .card-header-responsive {
+        flex-direction: column !important;
+        align-items: stretch !important;
+    }
+    
+    .search-input-wrapper {
+        max-width: 100% !important;
+        width: 100% !important;
+    }
+    
+    .card-header-responsive form {
+        width: 100% !important;
+        justify-content: space-between !important;
+    }
+    
+    .card-header-responsive form select {
+        flex: 1 !important;
+    }
+}
+

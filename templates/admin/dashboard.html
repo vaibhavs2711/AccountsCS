@@ -45,7 +45,7 @@
         <a href="{{ url_for('admin_leaderboard') }}" class="btn btn-primary" style="padding: 4px 12px; font-size: 0.8rem; border-radius: 6px; text-decoration: none;">View Full Leaderboard</a>
     </div>
     {% if leaderboard|length > 0 %}
-    <div class="table-responsive">
+    <div class="table-responsive table-responsive-stack">
         <table class="table mb-0">
             <thead>
                 <tr>
@@ -61,18 +61,18 @@
             <tbody>
                 {% for emp in leaderboard[:3] %}
                 <tr data-emp-color="{{ emp.color }}" data-emp-pct="{{ [emp.percentage, 100] | min }}">
-                    <td>
+                    <td data-label="Rank">
                         <strong class="lb-rank {% if loop.index == 1 %}gold{% elif loop.index == 2 %}silver{% elif loop.index == 3 %}bronze{% endif %}" style="font-size: 1.1rem; display: inline-block; width: auto; color: {% if loop.index > 3 %}var(--text-muted){% endif %};">
                             #{{ loop.index }}
                         </strong>
                     </td>
-                    <td><strong>{{ emp.name }}</strong></td>
-                    <td>
+                    <td data-label="Employee"><strong>{{ emp.name }}</strong></td>
+                    <td data-label="Team">
                         <span class="badge-pending" style="background: #eff6ff; color: var(--accent); padding: 4px 10px;">{{ emp.team_label }}</span>
                     </td>
-                    <td>{{ emp.business_done_fmt }}</td>
-                    <td>{{ emp.target_fmt }}</td>
-                    <td>
+                    <td data-label="Business Done">{{ emp.business_done_fmt }}</td>
+                    <td data-label="Monthly Target">{{ emp.target_fmt }}</td>
+                    <td data-label="Progress">
                         <div class="d-flex align-items-center gap-2">
                             <div class="progress-track thin" style="flex:1;">
                                 <div class="progress-fill"></div>
@@ -82,7 +82,7 @@
                             </span>
                         </div>
                     </td>
-                    <td>
+                    <td data-label="Action">
                         <a href="{{ url_for('admin_employee_detail', id=emp.id) }}" class="btn btn-secondary view-status-btn" style="padding: 4px 12px; font-size: 0.8rem; border-radius: 6px; text-decoration: none;">View Status</a>
                     </td>
                 </tr>
@@ -106,7 +106,7 @@
 <div class="card">
     <div class="card-title">Recent Transactions This Month</div>
     {% if recent_transactions|length > 0 %}
-    <div class="table-responsive">
+    <div class="table-responsive table-responsive-stack">
         <table class="table mb-0">
             <thead>
                 <tr>
@@ -122,19 +122,19 @@
             <tbody>
                 {% for t in recent_transactions %}
                 <tr>
-                    <td><strong>{{ t.property_name }}</strong></td>
-                    <td>{{ t.property_id }}</td>
-                    <td>{{ t.employee_name }}</td>
-                    <td>{{ format_inr(t.cityscope_commission) }}</td>
-                    <td>{{ format_inr(t.employee_commission) }}</td>
-                    <td>
+                    <td data-label="Property"><strong>{{ t.property_name }}</strong></td>
+                    <td data-label="ID">{{ t.property_id }}</td>
+                    <td data-label="Employee">{{ t.employee_name }}</td>
+                    <td data-label="Deal Amount">{{ format_inr(t.cityscope_commission) }}</td>
+                    <td data-label="Emp. Commission">{{ format_inr(t.employee_commission) }}</td>
+                    <td data-label="GST">
                         {% if t.gst_applied %}
                             Yes <span class="text-warning-custom" style="font-size:0.75rem;">-6%</span>
                         {% else %}
                             No
                         {% endif %}
                     </td>
-                    <td>
+                    <td data-label="Status">
                         {% if t.payment_status == 'PENDING' %}
                             <span class="badge-pending">PENDING</span>
                         {% else %}

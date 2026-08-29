@@ -44,15 +44,15 @@
 
 <div class="dashboard-grid">
     <!-- 1. Header -->
-    <div class="card header-flex-row" style="grid-column: 1 / -1; padding: 32px; position: relative; overflow: hidden; background: #ffffff;">
+    <div class="card emp-header-card" style="grid-column: 1 / -1;">
         
         <!-- Subtle background decoration -->
         <div style="position: absolute; top: -50px; right: -50px; width: 300px; height: 300px; background: radial-gradient(circle, #eff6ff 0%, rgba(255,255,255,0) 70%); border-radius: 50%; z-index: 0;"></div>
         <div style="position: absolute; bottom: -100px; left: 30%; width: 400px; height: 400px; background: radial-gradient(circle, #f8fafc 0%, rgba(255,255,255,0) 70%); border-radius: 50%; z-index: 0;"></div>
 
         <!-- Avatar and Info -->
-        <div style="display: flex; align-items: center; gap: 24px; z-index: 1;">
-            <div style="position: relative; width: 100px; height: 100px; background-color: #eff6ff; border-radius: 50%; display: flex; justify-content: center; align-items: center;">
+        <div class="emp-header-info">
+            <div style="position: relative; width: 100px; height: 100px; background-color: #eff6ff; border-radius: 50%; display: flex; justify-content: center; align-items: center; flex-shrink: 0;">
                 <div style="width: 76px; height: 76px; background-color: var(--accent); border-radius: 50%; display: flex; justify-content: center; align-items: center; color: white; font-size: 2.2rem; font-weight: 700;">
                     {{ employee.name[0]|upper }}
                 </div>
@@ -61,21 +61,21 @@
             
             <div>
                 <h2 style="margin: 0 0 16px 0; color: var(--text); font-size: 2rem; font-weight: 800;">{{ employee.name }}</h2>
-                <div style="display: flex; align-items: center; gap: 16px;">
-                    <span style="background-color: #eff6ff; color: var(--accent); padding: 6px 16px; border-radius: 20px; font-size: 0.9rem; font-weight: 700;">
+                <div class="emp-meta-row">
+                    <span style="background-color: #eff6ff; color: var(--accent); padding: 6px 16px; border-radius: 20px; font-size: 0.9rem; font-weight: 700; white-space: nowrap;">
                         {{ team_label }}
                     </span>
                     
-                    <div style="width: 1px; height: 28px; background-color: #cbd5e1;"></div>
+                    <div class="emp-header-divider"></div>
                     
-                    <div style="display: flex; flex-direction: column; justify-content: center;">
+                    <div style="display: flex; flex-direction: column; justify-content: center; align-items: inherit;">
                         <div style="font-weight: 700; font-size: 1.2rem; color: #334155; line-height: 1;">{{ format_inr(employee.salary) }}</div>
                         <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px; line-height: 1;">Salary</div>
                     </div>
                     
-                    <div style="width: 1px; height: 28px; background-color: #cbd5e1;"></div>
+                    <div class="emp-header-divider"></div>
                     
-                    <div style="display: flex; flex-direction: column; justify-content: center;">
+                    <div style="display: flex; flex-direction: column; justify-content: center; align-items: inherit;">
                         <div style="font-weight: 700; font-size: 1.2rem; color: #334155; line-height: 1;">{{ format_inr(m_target) }}</div>
                         <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px; line-height: 1;">Current Monthly Target</div>
                     </div>
@@ -84,7 +84,7 @@
         </div>
 
         <!-- Stats Card -->
-        <div style="z-index: 1; display: flex; align-items: stretch; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 16px; padding: 24px 40px; gap: 32px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.02);">
+        <div class="emp-header-stats">
             <!-- Icon -->
             <div style="display: flex; justify-content: center; align-items: center;">
                 <div style="width: 56px; height: 56px; background-color: #eff6ff; border-radius: 50%; display: flex; justify-content: center; align-items: center; color: var(--accent);">

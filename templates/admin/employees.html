@@ -13,7 +13,7 @@
         border-color: var(--accent) !important;
     }
 </style>
-<div class="page-header" style="display: flex; justify-content: space-between; align-items: center;">
+<div class="page-header card-header-responsive">
     <h2>Employees</h2>
     <button class="btn btn-primary" onclick="openAddModal()">+ Add Employee</button>
 </div>
@@ -90,7 +90,7 @@
 <div class="card">
     <div class="card-title">All Employees ({{ employees|length }})</div>
     {% if employees|length > 0 %}
-    <div class="table-responsive">
+    <div class="table-responsive table-responsive-stack">
         <table class="table mb-0">
             <thead>
                 <tr>
@@ -106,8 +106,8 @@
             <tbody>
                 {% for emp in employees %}
                 <tr>
-                    <td>{{ loop.index }}</td>
-                    <td>
+                    <td data-label="#">{{ loop.index }}</td>
+                    <td data-label="Name">
                         <div style="display: flex; align-items: center; gap: 8px;">
                             <a href="{{ url_for('admin_employee_detail', id=emp.id) }}" style="color: var(--primary); text-decoration: none;"><strong>{{ emp.name }}</strong></a>
                             {% if emp.team_type == 'CORE_TEAM' %}
@@ -121,11 +121,11 @@
                             {% endif %}
                         </div>
                     </td>
-                    <td>{{ emp.email }}</td>
-                    <td>{{ emp.salary_fmt }}</td>
-                    <td>{{ emp.target_fmt }}</td>
-                    <td>{{ emp.joined }}</td>
-                    <td>
+                    <td data-label="Email">{{ emp.email }}</td>
+                    <td data-label="Salary">{{ emp.salary_fmt }}</td>
+                    <td data-label="Monthly Target">{{ emp.target_fmt }}</td>
+                    <td data-label="Joined">{{ emp.joined }}</td>
+                    <td data-label="Action">
                         <a href="{{ url_for('admin_employee_detail', id=emp.id) }}" class="btn btn-secondary view-status-btn" style="padding: 4px 12px; font-size: 0.8rem; border-radius: 6px; text-decoration: none;">View Status</a>
                     </td>
                 </tr>
