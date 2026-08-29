@@ -80,7 +80,7 @@
                     value="{{ request.form.get('property_name', '') }}">
             </div>
             <div style="flex:1;">
-                <label class="form-label" style="font-size:0.85rem; font-weight:600;">Transaction Date</label>
+                <label class="form-label" style="font-size:0.85rem; font-weight:600;">Date of Deal</label>
                 <input type="date" class="form-control" name="transaction_date" required
                     value="{{ request.form.get('transaction_date', '') }}">
             </div>
@@ -94,17 +94,36 @@
             <div style="flex:1;">
                 <div class="d-flex gap-3 form-row-custom">
                     <div style="flex:1;">
-                        <label class="form-label" style="font-size:0.85rem; font-weight:600;">Buyer Commission ₹</label>
+                        <label class="form-label" style="font-size:0.85rem; font-weight:600;">Buyer Comm (Total) ₹</label>
                         <input type="number" class="form-control" name="buyer_commission_amount" min="0" step="1"
                             value="{{ request.form.get('buyer_commission_amount', '') }}" oninput="updateTotalCommission()">
                     </div>
                     <div style="flex:1;">
-                        <label class="form-label" style="font-size:0.85rem; font-weight:600;">Seller Commission
-                            ₹</label>
+                        <label class="form-label" style="font-size:0.85rem; font-weight:600;">Seller Comm (Total) ₹</label>
                         <input type="number" class="form-control" name="seller_commission_amount" min="0" step="1"
                             value="{{ request.form.get('seller_commission_amount', '') }}" oninput="updateTotalCommission()">
                     </div>
                 </div>
+            </div>
+        </div>
+        <div class="d-flex gap-3 mb-3 form-row-custom">
+            <div style="flex:1;">
+                <label class="form-label" style="font-size:0.85rem; font-weight:600;">Buyer Recv. Amt ₹</label>
+                <input type="number" class="form-control" name="buyer_commission_received" min="0" step="1" value="0">
+            </div>
+            <div style="flex:1;">
+                <label class="form-label" style="font-size:0.85rem; font-weight:600;">Buyer Recv. Date</label>
+                <input type="date" class="form-control" name="buyer_commission_date">
+            </div>
+        </div>
+        <div class="d-flex gap-3 mb-3 form-row-custom">
+            <div style="flex:1;">
+                <label class="form-label" style="font-size:0.85rem; font-weight:600;">Seller Recv. Amt ₹</label>
+                <input type="number" class="form-control" name="seller_commission_received" min="0" step="1" value="0">
+            </div>
+            <div style="flex:1;">
+                <label class="form-label" style="font-size:0.85rem; font-weight:600;">Seller Recv. Date</label>
+                <input type="date" class="form-control" name="seller_commission_date">
             </div>
         </div>
         <div class="mb-3">
@@ -204,22 +223,44 @@
                             <span class="badge-rejected" style="display: inline-block; white-space: nowrap; font-size:0.7rem; padding: 2px 6px; border: 1px solid var(--danger);">{{ commission_percent }}%</span>
                         </div>
                     </td>
-                    <td data-label="Buyer" style="white-space: nowrap;">{{ format_inr(t.buyer_commission_amount) if t.buyer_commission_amount else '—' }}</td>
-                    <td data-label="Seller" style="white-space: nowrap;">{{ format_inr(t.seller_commission_amount) if t.seller_commission_amount else '—' }}</td>
+                    <td data-label="Buyer" style="white-space: nowrap; line-height: 1.4; font-size: 0.8rem;">
+                        <div>Total: <strong>{{ format_inr(t.buyer_commission_amount) if t.buyer_commission_amount else '—' }}</strong></div>
+                        <div style="color: var(--success); font-size: 0.75rem;">Recv: {{ format_inr(t.buyer_commission_received) }}</div>
+                        {% set buyer_pending = t.buyer_commission_amount - t.buyer_commission_received %}
+                        <div style="color: {% if buyer_pending > 0 %}var(--danger){% else %}var(--text-muted){% endif %}; font-size: 0.75rem;">
+                            Pend: {{ format_inr(buyer_pending) }}
+                        </div>
+                        {% if t.buyer_commission_date %}
+                        <div style="color: var(--text-muted); font-size: 0.7rem;">On: {{ t.buyer_commission_date.strftime('%d %b %Y') }}</div>
+                        {% endif %}
+                    </td>
+                    <td data-label="Seller" style="white-space: nowrap; line-height: 1.4; font-size: 0.8rem;">
+                        <div>Total: <strong>{{ format_inr(t.seller_commission_amount) if t.seller_commission_amount else '—' }}</strong></div>
+                        <div style="color: var(--success); font-size: 0.75rem;">Recv: {{ format_inr(t.seller_commission_received) }}</div>
+                        {% set seller_pending = t.seller_commission_amount - t.seller_commission_received %}
+                        <div style="color: {% if seller_pending > 0 %}var(--danger){% else %}var(--text-muted){% endif %}; font-size: 0.75rem;">
+                            Pend: {{ format_inr(seller_pending) }}
+                        </div>
+                        {% if t.seller_commission_date %}
+                        <div style="color: var(--text-muted); font-size: 0.7rem;">On: {{ t.seller_commission_date.strftime('%d %b %Y') }}</div>
+                        {% endif %}
+                    </td>
                     <td data-label="Status" style="white-space: nowrap;">
-                        {% if t.payment_status == 'PENDING' %}
-                        <span class="status-badge pending">PENDING</span>
-                        {% else %}
+                        {% if t.payment_status == 'DONE' %}
                         <span class="status-badge done">DONE</span>
+                        {% elif t.payment_status == 'PARTIAL' %}
+                        <span class="status-badge partial" style="background: rgba(245,158,11,0.15); color: #d97706; padding: 4px 8px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase;">PARTIAL</span>
+                        {% else %}
+                        <span class="status-badge pending">PENDING</span>
                         {% endif %}
                     </td>
                     <td class="no-pdf" data-label="Action" style="white-space: nowrap;">
                         <div style="display:flex; align-items:center; gap:8px; flex-wrap: nowrap;">
-                            <button type="button" class="btn-primary-sm" style="background:#0f172a; border-radius:20px; padding:4px 14px; white-space: nowrap; flex-shrink: 0; height: auto; min-width: max-content;" onclick='editTransaction({{ t.id }}, {{ t.employee_id }}, "{{ t.property_id|replace('"', '\\"') }}", "{{ t.property_name|replace('"', '\\"') }}", "{{ t.transaction_date.strftime('%Y-%m-%d') if t.transaction_date else '' }}", {{ t.cityscope_commission }}, {{ t.buyer_commission_amount or 0 }}, {{ t.seller_commission_amount or 0 }}, {{ 1 if t.gst_applied else 0 }})'>Edit</button>
+                            <button type="button" class="btn-primary-sm" style="background:#0f172a; border-radius:20px; padding:4px 14px; white-space: nowrap; flex-shrink: 0; height: auto; min-width: max-content;" onclick='editTransaction({{ t.id }}, {{ t.employee_id }}, "{{ t.property_id|replace('"', '\\"') }}", "{{ t.property_name|replace('"', '\\"') }}", "{{ t.transaction_date.strftime('%Y-%m-%d') if t.transaction_date else '' }}", {{ t.cityscope_commission }}, {{ t.buyer_commission_amount or 0 }}, {{ t.seller_commission_amount or 0 }}, {{ 1 if t.gst_applied else 0 }}, {{ t.buyer_commission_received or 0 }}, "{{ t.buyer_commission_date.strftime('%Y-%m-%d') if t.buyer_commission_date else '' }}", {{ t.seller_commission_received or 0 }}, "{{ t.seller_commission_date.strftime('%Y-%m-%d') if t.seller_commission_date else '' }}")'>Edit</button>
                             <div class="dropdown-wrapper" style="position:relative;">
                                 <span class="action-menu" onclick="toggleDropdown(this)" style="flex-shrink:0; cursor:pointer;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"></circle><circle cx="12" cy="5" r="1"></circle><circle cx="12" cy="19" r="1"></circle></svg></span>
                                 <div class="dropdown-menu-custom" style="display:none; position:absolute; right:0; top:100%; background:#fff; border:1px solid #eee; border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,0.1); z-index:100; min-width:140px; padding:4px 0;">
-                                    {% if t.payment_status == 'PENDING' %}
+                                    {% if t.payment_status != 'DONE' %}
                                     <form method="POST" action="{{ url_for('admin_mark_paid', id=t.id) }}" style="margin:0;">
                                         <button type="submit" style="width:100%; text-align:left; background:none; border:none; padding:8px 16px; font-size:0.8rem; cursor:pointer; color:var(--text); display:flex; align-items:center; gap:8px;">
                                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>
@@ -328,7 +369,7 @@ function updateTotalCommission() {
 
 
 
-function editTransaction(id, employee_id, property_id, property_name, transaction_date, cs_commission, buyer_commission, seller_commission, gst_applied) {
+function editTransaction(id, employee_id, property_id, property_name, transaction_date, cs_commission, buyer_commission, seller_commission, gst_applied, buyer_received, buyer_date, seller_received, seller_date) {
     document.getElementById('form-title').innerText = 'Edit Transaction';
     document.getElementById('transaction_id').value = id;
     
@@ -344,6 +385,10 @@ function editTransaction(id, employee_id, property_id, property_name, transactio
     document.querySelector('input[name="cityscope_commission"]').value = cs_commission;
     document.querySelector('input[name="buyer_commission_amount"]').value = buyer_commission || '';
     document.querySelector('input[name="seller_commission_amount"]').value = seller_commission || '';
+    document.querySelector('input[name="buyer_commission_received"]').value = buyer_received || 0;
+    document.querySelector('input[name="buyer_commission_date"]').value = buyer_date || '';
+    document.querySelector('input[name="seller_commission_received"]').value = seller_received || 0;
+    document.querySelector('input[name="seller_commission_date"]').value = seller_date || '';
     document.querySelector('input[name="gst_applied"]').checked = (gst_applied === 1);
     
     document.getElementById('form-submit-btn').innerText = 'Save Changes';

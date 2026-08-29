@@ -247,7 +247,11 @@ def admin_add_transaction():
     transaction_date_str = request.form.get('transaction_date', '').strip()
     cs_commission_str = request.form.get('cityscope_commission', '')
     buyer_amount_str = request.form.get('buyer_commission_amount', '')
+    buyer_received_str = request.form.get('buyer_commission_received', '0')
+    buyer_date_str = request.form.get('buyer_commission_date', '').strip()
     seller_amount_str = request.form.get('seller_commission_amount', '')
+    seller_received_str = request.form.get('seller_commission_received', '0')
+    seller_date_str = request.form.get('seller_commission_date', '').strip()
     gst_applied = request.form.get('gst_applied') == '1'
 
     # Validation
@@ -263,7 +267,9 @@ def admin_add_transaction():
         employee_id = int(employee_id_str)
         cs_commission = float(cs_commission_str) if cs_commission_str else 0.0
         buyer_amount = float(buyer_amount_str) if buyer_amount_str else 0.0
+        buyer_received = float(buyer_received_str) if buyer_received_str else 0.0
         seller_amount = float(seller_amount_str) if seller_amount_str else 0.0
+        seller_received = float(seller_received_str) if seller_received_str else 0.0
     except ValueError:
         session['txn_error'] = 'Invalid numeric value(s).'
         return redirect(url_for('admin_transactions'))
@@ -292,16 +298,30 @@ def admin_add_transaction():
     month = txn_date.month
     year = txn_date.year
     quarter = get_quarter(month)
+    fy_year = get_fy_year(month, year)
+
+    # Calculate payment status based on received amounts
+    if (buyer_received >= buyer_amount) and (seller_received >= seller_amount):
+        payment_status = 'DONE'
+    elif (buyer_received > 0) or (seller_received > 0):
+        payment_status = 'PARTIAL'
+    else:
+        payment_status = 'PENDING'
 
     transaction_data = {
         'property_id': property_id,
         'property_name': property_name,
         'cityscope_commission': cs_commission,
         'buyer_commission_amount': buyer_amount,
+        'buyer_commission_received': buyer_received,
+        'buyer_commission_date': buyer_date_str if buyer_date_str else None,
         'seller_commission_amount': seller_amount,
+        'seller_commission_received': seller_received,
+        'seller_commission_date': seller_date_str if seller_date_str else None,
         'gst_applied': int(gst_applied),
         'net_commission': net_commission,
         'employee_commission': employee_commission,
+        'payment_status': payment_status,
         'transaction_date': transaction_date_str,
         'month': month,
         'year': year,

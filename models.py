@@ -106,16 +106,20 @@ def create_transaction(data: dict):
                 """INSERT INTO transactions
                    (property_id, property_name, 
                     cityscope_commission, buyer_commission_amount,
-                    seller_commission_amount, gst_applied, net_commission,
+                    buyer_commission_received, buyer_commission_date,
+                    seller_commission_amount, seller_commission_received,
+                    seller_commission_date, gst_applied, net_commission,
                     employee_commission, payment_status, transaction_date, month, year, quarter,
                     employee_id)
-                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
                 (
                     data['property_id'], data['property_name'],
                     data['cityscope_commission'], data.get('buyer_commission_amount', 0),
+                    data.get('buyer_commission_received', 0), data.get('buyer_commission_date') or None,
                     data.get('seller_commission_amount', 0),
+                    data.get('seller_commission_received', 0), data.get('seller_commission_date') or None,
                     data['gst_applied'], data['net_commission'],
-                    data['employee_commission'], 'PENDING',
+                    data['employee_commission'], data.get('payment_status', 'PENDING'),
                     data['transaction_date'], data['month'], data['year'], data['quarter'],
                     data['employee_id'],
                 )
@@ -133,18 +137,22 @@ def update_transaction(transaction_id: int, data: dict):
                 """UPDATE transactions SET
                     property_id = %s, property_name = %s,
                     cityscope_commission = %s, buyer_commission_amount = %s,
-                    seller_commission_amount = %s, gst_applied = %s, net_commission = %s,
+                    buyer_commission_received = %s, buyer_commission_date = %s,
+                    seller_commission_amount = %s, seller_commission_received = %s,
+                    seller_commission_date = %s, gst_applied = %s, net_commission = %s,
                     employee_commission = %s, transaction_date = %s, month = %s, year = %s, quarter = %s,
-                    employee_id = %s
+                    employee_id = %s, payment_status = %s
                    WHERE id = %s""",
                 (
                     data['property_id'], data['property_name'],
                     data['cityscope_commission'], data.get('buyer_commission_amount', 0),
+                    data.get('buyer_commission_received', 0), data.get('buyer_commission_date') or None,
                     data.get('seller_commission_amount', 0),
+                    data.get('seller_commission_received', 0), data.get('seller_commission_date') or None,
                     data['gst_applied'], data['net_commission'],
                     data['employee_commission'],
                     data['transaction_date'], data['month'], data['year'], data['quarter'],
-                    data['employee_id'],
+                    data['employee_id'], data.get('payment_status', 'PENDING'),
                     transaction_id
                 )
             )
@@ -235,12 +243,18 @@ def get_pending_commission_total():
 
 
 def mark_transaction_paid(transaction_id: int):
-    """Set payment_status to DONE for a transaction."""
+    """Set payment_status to DONE and mark received amounts as fully paid."""
     db = get_db()
     try:
         with db.cursor() as cur:
             cur.execute(
-                "UPDATE transactions SET payment_status = 'DONE' WHERE id = %s",
+                """UPDATE transactions SET 
+                    payment_status = 'DONE',
+                    buyer_commission_received = buyer_commission_amount,
+                    seller_commission_received = seller_commission_amount,
+                    buyer_commission_date = IFNULL(buyer_commission_date, CURRENT_DATE()),
+                    seller_commission_date = IFNULL(seller_commission_date, CURRENT_DATE())
+                   WHERE id = %s""",
                 (transaction_id,)
             )
     finally:

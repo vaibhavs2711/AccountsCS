@@ -68,11 +68,15 @@ def run_seed():
                     property_name VARCHAR(255) NOT NULL,
                     cityscope_commission DOUBLE NOT NULL,
                     buyer_commission_amount DOUBLE NOT NULL DEFAULT 0,
+                    buyer_commission_received DOUBLE NOT NULL DEFAULT 0,
+                    buyer_commission_date DATE NULL,
                     seller_commission_amount DOUBLE NOT NULL DEFAULT 0,
+                    seller_commission_received DOUBLE NOT NULL DEFAULT 0,
+                    seller_commission_date DATE NULL,
                     gst_applied TINYINT(1) NOT NULL DEFAULT 0,
                     net_commission DOUBLE NOT NULL,
                     employee_commission DOUBLE NOT NULL,
-                    payment_status ENUM('PENDING', 'DONE') NOT NULL DEFAULT 'PENDING',
+                    payment_status ENUM('PENDING', 'PARTIAL', 'DONE') NOT NULL DEFAULT 'PENDING',
                     transaction_date DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
                     month INT NOT NULL,
                     year INT NOT NULL,
@@ -84,6 +88,32 @@ def run_seed():
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
             """)
             print("✔ Table 'transactions' ensured.")
+
+            # --- Migrations for existing databases ---
+            cur.execute("""
+                ALTER TABLE transactions 
+                MODIFY COLUMN payment_status ENUM('PENDING', 'PARTIAL', 'DONE') NOT NULL DEFAULT 'PENDING'
+            """)
+            
+            cur.execute("SHOW COLUMNS FROM transactions LIKE 'buyer_commission_received'")
+            if cur.fetchone() is None:
+                cur.execute("ALTER TABLE transactions ADD COLUMN buyer_commission_received DOUBLE NOT NULL DEFAULT 0")
+                print("✔ Column 'buyer_commission_received' migrated.")
+
+            cur.execute("SHOW COLUMNS FROM transactions LIKE 'buyer_commission_date'")
+            if cur.fetchone() is None:
+                cur.execute("ALTER TABLE transactions ADD COLUMN buyer_commission_date DATE NULL")
+                print("✔ Column 'buyer_commission_date' migrated.")
+
+            cur.execute("SHOW COLUMNS FROM transactions LIKE 'seller_commission_received'")
+            if cur.fetchone() is None:
+                cur.execute("ALTER TABLE transactions ADD COLUMN seller_commission_received DOUBLE NOT NULL DEFAULT 0")
+                print("✔ Column 'seller_commission_received' migrated.")
+
+            cur.execute("SHOW COLUMNS FROM transactions LIKE 'seller_commission_date'")
+            if cur.fetchone() is None:
+                cur.execute("ALTER TABLE transactions ADD COLUMN seller_commission_date DATE NULL")
+                print("✔ Column 'seller_commission_date' migrated.")
 
             # --- leave_requests ---
             cur.execute("""
