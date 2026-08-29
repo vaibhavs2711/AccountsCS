@@ -109,7 +109,7 @@
         <div class="d-flex gap-3 mb-3 form-row-custom">
             <div style="flex:1;">
                 <label class="form-label" style="font-size:0.85rem; font-weight:600;">Buyer Recv. Amt ₹</label>
-                <input type="number" class="form-control" name="buyer_commission_received" min="0" step="1" value="0">
+                <input type="number" class="form-control" name="buyer_commission_received" min="0" step="1" placeholder="0">
             </div>
             <div style="flex:1;">
                 <label class="form-label" style="font-size:0.85rem; font-weight:600;">Buyer Recv. Date</label>
@@ -119,7 +119,7 @@
         <div class="d-flex gap-3 mb-3 form-row-custom">
             <div style="flex:1;">
                 <label class="form-label" style="font-size:0.85rem; font-weight:600;">Seller Recv. Amt ₹</label>
-                <input type="number" class="form-control" name="seller_commission_received" min="0" step="1" value="0">
+                <input type="number" class="form-control" name="seller_commission_received" min="0" step="1" placeholder="0">
             </div>
             <div style="flex:1;">
                 <label class="form-label" style="font-size:0.85rem; font-weight:600;">Seller Recv. Date</label>
@@ -385,9 +385,9 @@ function editTransaction(id, employee_id, property_id, property_name, transactio
     document.querySelector('input[name="cityscope_commission"]').value = cs_commission;
     document.querySelector('input[name="buyer_commission_amount"]').value = buyer_commission || '';
     document.querySelector('input[name="seller_commission_amount"]').value = seller_commission || '';
-    document.querySelector('input[name="buyer_commission_received"]').value = buyer_received || 0;
+    document.querySelector('input[name="buyer_commission_received"]').value = buyer_received || '';
     document.querySelector('input[name="buyer_commission_date"]').value = buyer_date || '';
-    document.querySelector('input[name="seller_commission_received"]').value = seller_received || 0;
+    document.querySelector('input[name="seller_commission_received"]').value = seller_received || '';
     document.querySelector('input[name="seller_commission_date"]').value = seller_date || '';
     document.querySelector('input[name="gst_applied"]').checked = (gst_applied === 1);
     
