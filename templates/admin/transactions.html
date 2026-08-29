@@ -477,6 +477,13 @@ function filterTransactions() {
 <script>
     var allPayments = {{ payments_json|safe }};
     
+    // Prevent mouse wheel from changing focused number inputs values
+    document.addEventListener('wheel', function(e) {
+        if (document.activeElement && document.activeElement.type === 'number') {
+            document.activeElement.blur();
+        }
+    });
+    
     function addPaymentRow(party, amount = '', date = '') {
         var container = document.getElementById(party === 'BUYER' ? 'buyer-payments-container' : 'seller-payments-container');
         var row = document.createElement('div');
