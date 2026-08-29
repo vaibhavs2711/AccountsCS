@@ -25,13 +25,19 @@
     </style>
     <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
         <div>
-            <a href="{{ url_for('admin_employees') }}" style="color:var(--text-muted); text-decoration:none; display:flex; align-items:center; gap:4px; font-size:0.85rem; margin-bottom:8px;">
+            <a href="{{ url_for('admin_employees') }}" class="no-pdf" style="color:var(--text-muted); text-decoration:none; display:flex; align-items:center; gap:4px; font-size:0.85rem; margin-bottom:8px;">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"></polyline></svg>
                 Back to Employees
             </a>
             <h2 style="color:var(--text); margin: 0;">Employee Detail</h2>
         </div>
-        <button class="btn btn-primary" onclick="openEditModal()">✎ Edit Settings</button>
+        <div class="d-flex gap-2 no-pdf">
+            <button class="btn btn-secondary" id="exportPdfBtn" onclick="exportEmployeePDF()" style="display: flex; align-items: center; gap: 6px;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                Export PDF
+            </button>
+            <button class="btn btn-primary" onclick="openEditModal()">✎ Edit Settings</button>
+        </div>
     </div>
 </div>
 
@@ -342,7 +348,7 @@
 </script>
 
 <!-- Edit Employee Form Modal -->
-<div class="modal-overlay" id="editEmployeeModal">
+<div class="modal-overlay no-pdf" id="editEmployeeModal">
     <div class="modal-content">
         <div class="card" style="margin-bottom: 0; border: none; box-shadow: none;">
             <div class="card-title" style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border); padding-bottom: 12px; margin-bottom: 20px;">
@@ -400,6 +406,7 @@
     </div>
 </div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 <script>
 function openEditModal() {
     document.getElementById('editEmployeeModal').classList.add('open');
@@ -416,5 +423,35 @@ window.addEventListener('click', function(event) {
         closeEditModal();
     }
 });
+
+function exportEmployeePDF() {
+    const btn = document.getElementById('exportPdfBtn');
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '⏳ Generating PDF...';
+    btn.disabled = true;
+
+    document.body.classList.add('generating-pdf');
+    const element = document.querySelector('.admin-main');
+    
+    const opt = {
+        margin:       10,
+        filename:     'Employee_Report_{{ employee.name|replace("'", "\\'") }}.pdf',
+        image:        { type: 'jpeg', quality: 0.98 },
+        html2canvas:  { scale: 2, useCORS: true, logging: false },
+        jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    };
+
+    html2pdf().set(opt).from(element).save().then(() => {
+        document.body.classList.remove('generating-pdf');
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+    }).catch(err => {
+        console.error(err);
+        document.body.classList.remove('generating-pdf');
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+        alert('Failed to generate PDF. Please try again.');
+    });
+}
 </script>
 {% endblock %}

@@ -1356,3 +1356,27 @@ button:active, .btn:active {
     }
 }
 
+/* =========================================
+   PDF EXPORT UTILITIES
+   ========================================= */
+.generating-pdf .no-pdf {
+    display: none !important;
+}
+
+.generating-pdf .admin-main {
+    margin-left: 0 !important;
+    padding: 0 !important;
+    background: transparent !important;
+}
+
+.generating-pdf .card {
+    box-shadow: none !important;
+    border: 1px solid var(--border) !important;
+    page-break-inside: avoid !important;
+}
+
+.generating-pdf .table-responsive {
+    overflow: visible !important;
+}
+
+
