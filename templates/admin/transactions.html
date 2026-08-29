@@ -569,26 +569,94 @@ function filterTransactions() {
         container.appendChild(row);
     }
 
+    var transactionsDataForExport = [
+        {% for t in transactions %}
+        {
+            date: "{{ t.transaction_date.strftime('%Y-%m-%d') if t.transaction_date else '' }}",
+            property_id: "{{ t.property_id|replace('"', '\\"') }}",
+            property_name: "{{ t.property_name|replace('"', '\\"') }}",
+            basic_price: {{ t.basic_price or 0 }},
+            employee_name: "{{ t.employee_name|replace('"', '\\"') }}",
+            gst_applied: "{{ 'Yes' if t.gst_applied else 'No' }}",
+            net_commission: {{ t.net_commission or 0 }},
+            employee_commission: {{ t.employee_commission or 0 }},
+            team_type: "{{ t.team_type }}",
+            buyer_commission_amount: {{ t.buyer_commission_amount or 0 }},
+            buyer_commission_received: {{ t.buyer_commission_received or 0 }},
+            buyer_commission_date: "{{ t.buyer_commission_date.strftime('%Y-%m-%d') if t.buyer_commission_date else '' }}",
+            seller_commission_amount: {{ t.seller_commission_amount or 0 }},
+            seller_commission_received: {{ t.seller_commission_received or 0 }},
+            seller_commission_date: "{{ t.seller_commission_date.strftime('%Y-%m-%d') if t.seller_commission_date else '' }}",
+            payment_status: "{{ t.payment_status }}"
+        }{% if not loop.last %},{% endif %}
+        {% endfor %}
+    ];
+
     function exportTransactionsExcel() {
-        var table = document.getElementById("transactionsTable");
-        var csv = [];
+        var headers = [
+            "Deal Date",
+            "Property ID",
+            "Property Name",
+            "Basic Price (INR)",
+            "Employee Name",
+            "GST Applied",
+            "Net Commission (INR)",
+            "Employee Share (INR)",
+            "Employee Share (%)",
+            "Buyer Comm Total (INR)",
+            "Buyer Comm Received (INR)",
+            "Buyer Comm Pending (INR)",
+            "Buyer Last Payment Date",
+            "Seller Comm Total (INR)",
+            "Seller Comm Received (INR)",
+            "Seller Comm Pending (INR)",
+            "Seller Last Payment Date",
+            "Status"
+        ];
         
-        // Loop through table rows
-        for (var i = 0; i < table.rows.length; i++) {
-            var row = [], cols = table.rows[i].cells;
-            // Loop through cells (skip action column!)
-            for (var j = 0; j < cols.length - 1; j++) {
-                // Clean up the text content (remove whitespace, line breaks, rupees symbol)
-                var text = cols[j].innerText.replace(/(\r\n|\n|\r)/gm, " ").trim();
-                // Escape double quotes
-                text = text.replace(/"/g, '""');
-                row.push('"' + text + '"');
+        var rows = [];
+        rows.push(headers.map(h => `"${h}"`).join(","));
+        
+        transactionsDataForExport.forEach(t => {
+            var buyer_pending = Math.max(0, t.buyer_commission_amount - t.buyer_commission_received);
+            var seller_pending = Math.max(0, t.seller_commission_amount - t.seller_commission_received);
+            
+            // Calculate effective share percentage
+            var eff_pct = 0;
+            if (t.net_commission > 0) {
+                eff_pct = Math.round((t.employee_commission / t.net_commission) * 1000) / 10;
             }
-            csv.push(row.join(","));
-        }
+            
+            var row = [
+                t.date,
+                t.property_id,
+                t.property_name,
+                t.basic_price,
+                t.employee_name,
+                t.gst_applied,
+                t.net_commission,
+                t.employee_commission,
+                eff_pct + "%",
+                t.buyer_commission_amount,
+                t.buyer_commission_received,
+                buyer_pending,
+                t.buyer_commission_date,
+                t.seller_commission_amount,
+                t.seller_commission_received,
+                seller_pending,
+                t.seller_commission_date,
+                t.payment_status
+            ];
+            
+            rows.push(row.map(val => {
+                var str = String(val === null || val === undefined ? "" : val);
+                // Escape double quotes
+                str = str.replace(/"/g, '""');
+                return `"${str}"`;
+            }).join(","));
+        });
         
-        // Download CSV
-        var csvString = csv.join("\n");
+        var csvString = rows.join("\n");
         var blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csvString], { type: "text/csv;charset=utf-8;" }); // include UTF-8 BOM for Excel
         var link = document.createElement("a");
         var url = URL.createObjectURL(blob);
