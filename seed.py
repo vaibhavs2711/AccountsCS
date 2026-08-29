@@ -115,6 +115,19 @@ def run_seed():
             else:
                 print("ℹ Admin user already exists — skipped.")
 
+            # --- Seed dmistry@cityscope.in ---
+            cur.execute("SELECT id FROM users WHERE email = %s", ('dmistry@cityscope.in',))
+            if cur.fetchone() is None:
+                hashed = hash_password('dmistry')
+                cur.execute(
+                    """INSERT INTO users (name, email, password, role)
+                       VALUES (%s, %s, %s, %s)""",
+                    ('D Mistry', 'dmistry@cityscope.in', hashed, 'ADMIN')
+                )
+                print("✔ Admin user seeded (dmistry@cityscope.in / dmistry).")
+            else:
+                print("ℹ Admin user dmistry@cityscope.in already exists — skipped.")
+
         print("\n✅ Seed completed successfully!")
 
     finally:
