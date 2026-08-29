@@ -221,6 +221,9 @@ def admin_transactions():
     
     employees = models.get_all_employees()
     transactions = models.get_all_transactions(sort=sort_by)
+    payments = models.get_transaction_payments_dict()
+    import json
+    payments_json = json.dumps(payments)
 
     success = session.pop('txn_success', None)
     error = session.pop('txn_error', None)
@@ -233,6 +236,7 @@ def admin_transactions():
         success=success,
         error=error,
         current_sort=sort_by,
+        payments_json=payments_json,
     )
 
 
@@ -247,12 +251,14 @@ def admin_add_transaction():
     transaction_date_str = request.form.get('transaction_date', '').strip()
     cs_commission_str = request.form.get('cityscope_commission', '')
     buyer_amount_str = request.form.get('buyer_commission_amount', '')
-    buyer_received_str = request.form.get('buyer_commission_received', '0')
-    buyer_date_str = request.form.get('buyer_commission_date', '').strip()
     seller_amount_str = request.form.get('seller_commission_amount', '')
-    seller_received_str = request.form.get('seller_commission_received', '0')
-    seller_date_str = request.form.get('seller_commission_date', '').strip()
     gst_applied = request.form.get('gst_applied') == '1'
+
+    # Retrieve payment installments
+    buyer_payment_amounts = request.form.getlist('buyer_payment_amounts')
+    buyer_payment_dates = request.form.getlist('buyer_payment_dates')
+    seller_payment_amounts = request.form.getlist('seller_payment_amounts')
+    seller_payment_dates = request.form.getlist('seller_payment_dates')
 
     # Validation
     if not all([employee_id_str, property_id, property_name, transaction_date_str]):
@@ -267,9 +273,7 @@ def admin_add_transaction():
         employee_id = int(employee_id_str)
         cs_commission = float(cs_commission_str) if cs_commission_str else 0.0
         buyer_amount = float(buyer_amount_str) if buyer_amount_str else 0.0
-        buyer_received = float(buyer_received_str) if buyer_received_str else 0.0
         seller_amount = float(seller_amount_str) if seller_amount_str else 0.0
-        seller_received = float(seller_received_str) if seller_received_str else 0.0
     except ValueError:
         session['txn_error'] = 'Invalid numeric value(s).'
         return redirect(url_for('admin_transactions'))
@@ -282,6 +286,31 @@ def admin_add_transaction():
     if not employee['team_type']:
         session['txn_error'] = 'Selected employee has no team assigned.'
         return redirect(url_for('admin_transactions'))
+
+    # Calculate received amounts and latest dates from installments lists
+    buyer_received = 0.0
+    buyer_dates = []
+    for amt_str, date_str in zip(buyer_payment_amounts, buyer_payment_dates):
+        if amt_str:
+            try:
+                buyer_received += float(amt_str)
+            except ValueError:
+                pass
+        if date_str:
+            buyer_dates.append(date_str)
+    buyer_date = max(buyer_dates) if buyer_dates else None
+
+    seller_received = 0.0
+    seller_dates = []
+    for amt_str, date_str in zip(seller_payment_amounts, seller_payment_dates):
+        if amt_str:
+            try:
+                seller_received += float(amt_str)
+            except ValueError:
+                pass
+        if date_str:
+            seller_dates.append(date_str)
+    seller_date = max(seller_dates) if seller_dates else None
 
     # Calculate commission
     net_commission, employee_commission = calculate_commission(
@@ -314,10 +343,10 @@ def admin_add_transaction():
         'cityscope_commission': cs_commission,
         'buyer_commission_amount': buyer_amount,
         'buyer_commission_received': buyer_received,
-        'buyer_commission_date': buyer_date_str if buyer_date_str else None,
+        'buyer_commission_date': buyer_date,
         'seller_commission_amount': seller_amount,
         'seller_commission_received': seller_received,
-        'seller_commission_date': seller_date_str if seller_date_str else None,
+        'seller_commission_date': seller_date,
         'gst_applied': int(gst_applied),
         'net_commission': net_commission,
         'employee_commission': employee_commission,
@@ -330,16 +359,21 @@ def admin_add_transaction():
     }
 
     if transaction_id_str:
-        models.update_transaction(int(transaction_id_str), transaction_data)
+        txn_id = int(transaction_id_str)
+        models.update_transaction(txn_id, transaction_data)
+        models.save_transaction_payments(txn_id, 'BUYER', buyer_payment_amounts, buyer_payment_dates)
+        models.save_transaction_payments(txn_id, 'SELLER', seller_payment_amounts, seller_payment_dates)
         models.recalculate_employee_quarterly_commissions(employee_id, quarter, fy_year)
-        updated_txn = models.get_transaction_by_id(int(transaction_id_str))
+        updated_txn = models.get_transaction_by_id(txn_id)
         final_comm = updated_txn['employee_commission'] if updated_txn else employee_commission
         session['txn_success'] = (
             f'Transaction for "{property_name}" updated. '
             f'Employee commission: {format_inr(final_comm)}'
         )
     else:
-        models.create_transaction(transaction_data)
+        txn_id = models.create_transaction(transaction_data)
+        models.save_transaction_payments(txn_id, 'BUYER', buyer_payment_amounts, buyer_payment_dates)
+        models.save_transaction_payments(txn_id, 'SELLER', seller_payment_amounts, seller_payment_dates)
         models.recalculate_employee_quarterly_commissions(employee_id, quarter, fy_year)
         txns = models.get_transactions_by_employee(employee_id)
         final_comm = txns[0]['employee_commission'] if txns else employee_commission

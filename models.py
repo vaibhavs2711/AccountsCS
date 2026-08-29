@@ -560,3 +560,58 @@ def recalculate_employee_quarterly_commissions(employee_id: int, quarter: int, f
                 )
     finally:
         db.close()
+
+
+def save_transaction_payments(transaction_id: int, party: str, amounts: list, dates: list):
+    """Save payment installments for a specific transaction and party (BUYER or SELLER)."""
+    db = get_db()
+    try:
+        with db.cursor() as cur:
+            # Delete old installments
+            cur.execute(
+                "DELETE FROM commission_payments WHERE transaction_id = %s AND party = %s",
+                (transaction_id, party)
+            )
+            # Insert new ones
+            for amt_str, date_str in zip(amounts, dates):
+                if not amt_str or not date_str:
+                    continue
+                try:
+                    amount = float(amt_str)
+                    if amount <= 0:
+                        continue
+                except ValueError:
+                    continue
+                cur.execute(
+                    """INSERT INTO commission_payments (transaction_id, party, amount, payment_date)
+                       VALUES (%s, %s, %s, %s)""",
+                    (transaction_id, party, amount, date_str)
+                )
+    finally:
+        db.close()
+
+
+def get_transaction_payments_dict():
+    """Fetch all payments and group them by transaction_id in a dictionary format."""
+    db = get_db()
+    try:
+        with db.cursor() as cur:
+            cur.execute("SELECT * FROM commission_payments ORDER BY payment_date ASC")
+            rows = cur.fetchall()
+            payments_dict = {}
+            for r in rows:
+                txn_id = r['transaction_id']
+                party = r['party']
+                if txn_id not in payments_dict:
+                    payments_dict[txn_id] = {'BUYER': [], 'SELLER': []}
+                # Format payment date as string YYYY-MM-DD
+                payment_date_str = r['payment_date'].strftime('%Y-%m-%d') if r['payment_date'] else ''
+                payments_dict[txn_id][party].append({
+                    'id': r['id'],
+                    'amount': r['amount'],
+                    'payment_date': payment_date_str
+                })
+            return payments_dict
+    finally:
+        db.close()
+

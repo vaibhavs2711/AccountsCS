@@ -9,9 +9,9 @@
         <div class="page-meta" style="margin-top:4px;">Manage all your property transactions in one place.</div>
     </div>
     <div class="d-flex gap-2 no-pdf">
-        <button class="btn btn-secondary" id="exportPdfBtn" onclick="exportTransactionsPDF()" style="display: flex; align-items: center; gap: 6px; padding: 10px 16px; font-weight: 600; border-radius: 8px;">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-            Export PDF
+        <button class="btn btn-secondary" id="exportExcelBtn" onclick="exportTransactionsExcel()" style="display: flex; align-items: center; gap: 6px; padding: 10px 16px; font-weight: 600; border-radius: 8px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="9" y1="21" x2="9" y2="9"></line></svg>
+            Export Excel
         </button>
         <button class="btn btn-primary" style="padding:10px 16px; font-weight:600; border-radius:8px;" onclick="openAddModal()">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px; margin-bottom:-2px;"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
@@ -106,24 +106,25 @@
                 </div>
             </div>
         </div>
-        <div class="d-flex gap-3 mb-3 form-row-custom">
-            <div style="flex:1;">
-                <label class="form-label" style="font-size:0.85rem; font-weight:600;">Buyer Recv. Amt ₹</label>
-                <input type="number" class="form-control" name="buyer_commission_received" min="0" step="1" placeholder="0">
+        <!-- Buyer Payment Portions (Installments) -->
+        <div class="mb-3" style="border: 1px solid var(--border); border-radius: 8px; padding: 16px; background-color: #f8fafc;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                <label class="form-label" style="font-size:0.85rem; font-weight:700; color:var(--text); margin:0;">Buyer Commission Installment Portions</label>
+                <button type="button" class="btn btn-secondary" onclick="addPaymentRow('BUYER')" style="padding: 4px 8px; font-size: 0.75rem; border-radius: 4px; background-color: #e2e8f0; color: #475569; border: none; font-weight: 600; cursor: pointer;">+ Add Portion</button>
             </div>
-            <div style="flex:1;">
-                <label class="form-label" style="font-size:0.85rem; font-weight:600;">Buyer Recv. Date</label>
-                <input type="date" class="form-control" name="buyer_commission_date">
+            <div id="buyer-payments-container">
+                <!-- Rows added dynamically -->
             </div>
         </div>
-        <div class="d-flex gap-3 mb-3 form-row-custom">
-            <div style="flex:1;">
-                <label class="form-label" style="font-size:0.85rem; font-weight:600;">Seller Recv. Amt ₹</label>
-                <input type="number" class="form-control" name="seller_commission_received" min="0" step="1" placeholder="0">
+
+        <!-- Seller Payment Portions (Installments) -->
+        <div class="mb-3" style="border: 1px solid var(--border); border-radius: 8px; padding: 16px; background-color: #f8fafc;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                <label class="form-label" style="font-size:0.85rem; font-weight:700; color:var(--text); margin:0;">Seller Commission Installment Portions</label>
+                <button type="button" class="btn btn-secondary" onclick="addPaymentRow('SELLER')" style="padding: 4px 8px; font-size: 0.75rem; border-radius: 4px; background-color: #e2e8f0; color: #475569; border: none; font-weight: 600; cursor: pointer;">+ Add Portion</button>
             </div>
-            <div style="flex:1;">
-                <label class="form-label" style="font-size:0.85rem; font-weight:600;">Seller Recv. Date</label>
-                <input type="date" class="form-control" name="seller_commission_date">
+            <div id="seller-payments-container">
+                <!-- Rows added dynamically -->
             </div>
         </div>
         <div class="mb-3">
@@ -350,6 +351,10 @@ function openAddModal() {
     document.getElementById('hidden_employee_id').value = '';
     document.getElementById('selected-employee-text').innerHTML = `<span style="color: var(--text-muted);">— Select Employee —</span>`;
     
+    // Reset installment containers
+    document.getElementById('buyer-payments-container').innerHTML = '';
+    document.getElementById('seller-payments-container').innerHTML = '';
+    
     // Set default date to today
     const today = new Date();
     const yyyy = today.getFullYear();
@@ -385,11 +390,22 @@ function editTransaction(id, employee_id, property_id, property_name, transactio
     document.querySelector('input[name="cityscope_commission"]').value = cs_commission;
     document.querySelector('input[name="buyer_commission_amount"]').value = buyer_commission || '';
     document.querySelector('input[name="seller_commission_amount"]').value = seller_commission || '';
-    document.querySelector('input[name="buyer_commission_received"]').value = buyer_received || '';
-    document.querySelector('input[name="buyer_commission_date"]').value = buyer_date || '';
-    document.querySelector('input[name="seller_commission_received"]').value = seller_received || '';
-    document.querySelector('input[name="seller_commission_date"]').value = seller_date || '';
     document.querySelector('input[name="gst_applied"]').checked = (gst_applied === 1);
+    
+    // Populate installments dynamically
+    document.getElementById('buyer-payments-container').innerHTML = '';
+    document.getElementById('seller-payments-container').innerHTML = '';
+    
+    if (allPayments && allPayments[id]) {
+        var buyerList = allPayments[id]['BUYER'] || [];
+        buyerList.forEach(p => {
+            addPaymentRow('BUYER', p.amount, p.payment_date);
+        });
+        var sellerList = allPayments[id]['SELLER'] || [];
+        sellerList.forEach(p => {
+            addPaymentRow('SELLER', p.amount, p.payment_date);
+        });
+    }
     
     document.getElementById('form-submit-btn').innerText = 'Save Changes';
     document.getElementById('transactionModal').classList.add('open');
@@ -458,39 +474,57 @@ function filterTransactions() {
     }
 }
 </script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 <script>
-function exportTransactionsPDF() {
-    const btn = document.getElementById('exportPdfBtn');
-    const originalText = btn.innerHTML;
-    btn.innerHTML = '⏳ Generating PDF...';
-    btn.disabled = true;
-
-    document.body.classList.add('generating-pdf');
-    const element = document.querySelector('.admin-main');
+    var allPayments = {{ payments_json|safe }};
     
-    // Get current timestamp for filename
-    const dateStr = new Date().toISOString().slice(0, 10);
-    
-    const opt = {
-        margin:       10,
-        filename:     `Transactions_Report_${dateStr}.pdf`,
-        image:        { type: 'jpeg', quality: 0.98 },
-        html2canvas:  { scale: 2, useCORS: true, logging: false },
-        jsPDF:        { unit: 'mm', format: 'a4', orientation: 'landscape' } // Landscape is better for wide transactions tables!
-    };
+    function addPaymentRow(party, amount = '', date = '') {
+        var container = document.getElementById(party === 'BUYER' ? 'buyer-payments-container' : 'seller-payments-container');
+        var row = document.createElement('div');
+        row.className = 'd-flex gap-2 mb-2 align-items-center';
+        row.style.width = '100%';
+        
+        var namePrefix = party === 'BUYER' ? 'buyer_payment' : 'seller_payment';
+        
+        row.innerHTML = `
+            <input type="number" class="form-control" name="${namePrefix}_amounts" placeholder="Portion Amount" min="0" step="1" value="${amount}" style="flex: 2; height: 36px; font-size: 0.85rem;" required>
+            <input type="date" class="form-control" name="${namePrefix}_dates" value="${date}" style="flex: 2; height: 36px; font-size: 0.85rem;" required>
+            <button type="button" onclick="this.parentElement.remove()" style="padding: 6px 10px; height: 36px; border-radius: 6px; border: 1px solid #fecaca; background: #fef2f2; color: #ef4444; display:flex; align-items:center; justify-content:center; cursor:pointer;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+            </button>
+        `;
+        container.appendChild(row);
+    }
 
-    html2pdf().set(opt).from(element).save().then(() => {
-        document.body.classList.remove('generating-pdf');
-        btn.innerHTML = originalText;
-        btn.disabled = false;
-    }).catch(err => {
-        console.error(err);
-        document.body.classList.remove('generating-pdf');
-        btn.innerHTML = originalText;
-        btn.disabled = false;
-        alert('Failed to generate PDF. Please try again.');
-    });
-}
+    function exportTransactionsExcel() {
+        var table = document.getElementById("transactionsTable");
+        var csv = [];
+        
+        // Loop through table rows
+        for (var i = 0; i < table.rows.length; i++) {
+            var row = [], cols = table.rows[i].cells;
+            // Loop through cells (skip action column!)
+            for (var j = 0; j < cols.length - 1; j++) {
+                // Clean up the text content (remove whitespace, line breaks, rupees symbol)
+                var text = cols[j].innerText.replace(/(\r\n|\n|\r)/gm, " ").trim();
+                // Escape double quotes
+                text = text.replace(/"/g, '""');
+                row.push('"' + text + '"');
+            }
+            csv.push(row.join(","));
+        }
+        
+        // Download CSV
+        var csvString = csv.join("\n");
+        var blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csvString], { type: "text/csv;charset=utf-8;" }); // include UTF-8 BOM for Excel
+        var link = document.createElement("a");
+        var url = URL.createObjectURL(blob);
+        link.setAttribute("href", url);
+        var dateStr = new Date().toISOString().slice(0, 10);
+        link.setAttribute("download", `Transactions_Report_${dateStr}.csv`);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
 </script>
 {% endblock %}

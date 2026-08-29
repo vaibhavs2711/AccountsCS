@@ -130,6 +130,20 @@ def run_seed():
             """)
             print("✔ Table 'leave_requests' ensured.")
 
+            # --- commission_payments ---
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS commission_payments (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    transaction_id INT NOT NULL,
+                    party ENUM('BUYER', 'SELLER') NOT NULL,
+                    amount DOUBLE NOT NULL,
+                    payment_date DATE NOT NULL,
+                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (transaction_id) REFERENCES transactions(id) ON DELETE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+            """)
+            print("✔ Table 'commission_payments' ensured.")
+
             # ----------------------------------------------------------
             # 3. Seed admin user (skip if already exists)
             # ----------------------------------------------------------
