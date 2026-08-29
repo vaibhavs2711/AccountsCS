@@ -253,9 +253,15 @@
                         <div>Total: <strong>{{ format_inr(t.buyer_commission_amount) if t.buyer_commission_amount else '—' }}</strong></div>
                         <div style="color: var(--success); font-size: 0.75rem;">Recv: {{ format_inr(t.buyer_commission_received) }}</div>
                         {% set buyer_pending = t.buyer_commission_amount - t.buyer_commission_received %}
+                        {% if t.payment_status == 'DONE' and buyer_pending > 0 %}
+                        <div style="color: var(--text-muted); font-size: 0.75rem;">
+                            Remained: {{ format_inr(buyer_pending) }}
+                        </div>
+                        {% else %}
                         <div style="color: {% if buyer_pending > 0 %}var(--danger){% else %}var(--text-muted){% endif %}; font-size: 0.75rem;">
                             Pend: {{ format_inr(buyer_pending) }}
                         </div>
+                        {% endif %}
                         {% if t.buyer_commission_date %}
                         <div style="color: var(--text-muted); font-size: 0.7rem;">On: {{ t.buyer_commission_date.strftime('%d %b %Y') }}</div>
                         {% endif %}
@@ -264,9 +270,15 @@
                         <div>Total: <strong>{{ format_inr(t.seller_commission_amount) if t.seller_commission_amount else '—' }}</strong></div>
                         <div style="color: var(--success); font-size: 0.75rem;">Recv: {{ format_inr(t.seller_commission_received) }}</div>
                         {% set seller_pending = t.seller_commission_amount - t.seller_commission_received %}
+                        {% if t.payment_status == 'DONE' and seller_pending > 0 %}
+                        <div style="color: var(--text-muted); font-size: 0.75rem;">
+                            Remained: {{ format_inr(seller_pending) }}
+                        </div>
+                        {% else %}
                         <div style="color: {% if seller_pending > 0 %}var(--danger){% else %}var(--text-muted){% endif %}; font-size: 0.75rem;">
                             Pend: {{ format_inr(seller_pending) }}
                         </div>
+                        {% endif %}
                         {% if t.seller_commission_date %}
                         <div style="color: var(--text-muted); font-size: 0.7rem;">On: {{ t.seller_commission_date.strftime('%d %b %Y') }}</div>
                         {% endif %}
@@ -291,6 +303,12 @@
                                         <button type="submit" style="width:100%; text-align:left; background:none; border:none; padding:8px 16px; font-size:0.8rem; cursor:pointer; color:var(--text); display:flex; align-items:center; gap:8px;">
                                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>
                                             Mark Paid
+                                        </button>
+                                    </form>
+                                    <form method="POST" action="{{ url_for('admin_settle_transaction', id=t.id) }}" style="margin:0;">
+                                        <button type="submit" style="width:100%; text-align:left; background:none; border:none; padding:8px 16px; font-size:0.8rem; cursor:pointer; color:var(--warning); display:flex; align-items:center; gap:8px;">
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--warning)" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                                            Force Complete
                                         </button>
                                     </form>
                                     {% endif %}

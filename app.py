@@ -396,6 +396,15 @@ def admin_mark_paid(id):
     return redirect(url_for('admin_transactions'))
 
 
+@app.route('/admin/transactions/settle/<int:id>', methods=['POST'])
+@admin_required
+def admin_settle_transaction(id):
+    """Settle a transaction as DONE keeping the currently received partial payments."""
+    models.settle_transaction(id)
+    session['txn_success'] = 'Transaction forced complete (settled).'
+    return redirect(url_for('admin_transactions'))
+
+
 @app.route('/admin/leaves')
 @admin_required
 def admin_leaves():

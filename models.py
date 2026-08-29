@@ -615,3 +615,16 @@ def get_transaction_payments_dict():
     finally:
         db.close()
 
+
+def settle_transaction(transaction_id: int):
+    """Set payment_status to DONE without changing received amounts."""
+    db = get_db()
+    try:
+        with db.cursor() as cur:
+            cur.execute(
+                "UPDATE transactions SET payment_status = 'DONE' WHERE id = %s",
+                (transaction_id,)
+            )
+    finally:
+        db.close()
+
