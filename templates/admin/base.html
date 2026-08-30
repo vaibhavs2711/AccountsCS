@@ -64,8 +64,20 @@
 {% block scripts %}
 <script>
 function toggleSidebar() {
-    document.getElementById('sidebar').classList.toggle('open');
-    document.getElementById('sidebarOverlay').classList.toggle('open');
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.getElementById('sidebarOverlay');
+    const toggleBtn = document.querySelector('.sidebar-toggle');
+    
+    sidebar.classList.toggle('open');
+    overlay.classList.toggle('open');
+    
+    if (toggleBtn) {
+        if (sidebar.classList.contains('open')) {
+            toggleBtn.style.display = 'none';
+        } else {
+            toggleBtn.style.display = ''; // Reverts to CSS default (block)
+        }
+    }
 }
 </script>
 {% endblock %}

@@ -91,6 +91,27 @@ def run_seed():
             print("✔ Table 'transactions' ensured.")
 
             # --- Migrations for existing databases ---
+            # users table migrations
+            cur.execute("SHOW COLUMNS FROM users LIKE 'team_type'")
+            if cur.fetchone() is None:
+                cur.execute("ALTER TABLE users ADD COLUMN team_type ENUM('CORE_TEAM', 'NORMAL_TEAM', 'RENT_TEAM') NULL")
+                print("✔ Column 'team_type' migrated on users.")
+
+            cur.execute("SHOW COLUMNS FROM users LIKE 'salary'")
+            if cur.fetchone() is None:
+                cur.execute("ALTER TABLE users ADD COLUMN salary DOUBLE NOT NULL DEFAULT 0")
+                print("✔ Column 'salary' migrated on users.")
+
+            cur.execute("SHOW COLUMNS FROM users LIKE 'target_multiplier'")
+            if cur.fetchone() is None:
+                cur.execute("ALTER TABLE users ADD COLUMN target_multiplier DOUBLE NOT NULL DEFAULT 7.0")
+                print("✔ Column 'target_multiplier' migrated on users.")
+
+            cur.execute("SHOW COLUMNS FROM users LIKE 'commission_rate'")
+            if cur.fetchone() is None:
+                cur.execute("ALTER TABLE users ADD COLUMN commission_rate DOUBLE NOT NULL DEFAULT 0.20")
+                print("✔ Column 'commission_rate' migrated on users.")
+
             cur.execute("""
                 ALTER TABLE transactions 
                 MODIFY COLUMN payment_status ENUM('PENDING', 'PARTIAL', 'DONE') NOT NULL DEFAULT 'PENDING'

@@ -4,40 +4,25 @@
 
 {% block content %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
 <div class="page-header">
-    <style>
-        .header-flex-row {
-            display: flex !important;
-            flex-direction: row !important;
-            flex-wrap: nowrap !important;
-            justify-content: space-between !important;
-            align-items: center !important;
-            width: 100% !important;
-        }
-        @media (max-width: 900px) {
-            .header-flex-row {
-                flex-wrap: wrap !important;
-                justify-content: center !important;
-                gap: 24px;
-            }
-        }
-    </style>
-    <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
-        <div>
-            <a href="{{ url_for('admin_employees') }}" class="no-pdf" style="color:var(--text-muted); text-decoration:none; display:flex; align-items:center; gap:4px; font-size:0.85rem; margin-bottom:8px;">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"></polyline></svg>
-                Back to Employees
-            </a>
-            <h2 style="color:var(--text); margin: 0;">Employee Detail</h2>
-        </div>
-        <div class="d-flex gap-2 no-pdf">
-            <button class="btn btn-secondary" id="exportPdfBtn" onclick="exportEmployeePDF()" style="display: flex; align-items: center; gap: 6px;">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-                Export PDF
+    <div>
+        <a href="{{ url_for('admin_employees') }}" class="no-pdf" style="color:var(--text-muted); text-decoration:none; display:flex; align-items:center; gap:4px; font-size:0.85rem; margin-bottom:8px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"></polyline></svg>
+            Back to Employees
+        </a>
+        <h2 style="color:var(--text); margin: 0;">Employee Detail</h2>
+    </div>
+    <div class="no-pdf" style="display: flex; gap: 8px; flex-wrap: wrap;">
+        <button class="btn btn-secondary" id="exportPdfBtn" onclick="exportEmployeePDF()" style="display: flex; align-items: center; gap: 6px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2-2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+            Export PDF
+        </button>
+        <button class="btn btn-primary" onclick="openEditModal()">✎ Edit Settings</button>
+        <form method="POST" action="{{ url_for('admin_delete_employee', id=employee.id) }}" style="margin: 0;" onsubmit="return confirm('WARNING: This will permanently delete this employee and ALL their transactions, leaves, and history. Are you absolutely sure?');">
+            <button type="submit" class="btn btn-secondary" style="background-color: var(--danger); border-color: var(--danger); color: white; padding: 6px 12px; display: flex; align-items: center; justify-content: center; height: 100%; box-sizing: border-box;" title="Delete Employee">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
             </button>
-            <button class="btn btn-primary" onclick="openEditModal()">✎ Edit Settings</button>
-        </div>
+        </form>
     </div>
 </div>
 
@@ -386,6 +371,10 @@
                             </option>
                         </select>
                     </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" style="font-size:0.85rem; font-weight:600;">New Password (Optional)</label>
+                    <input type="password" class="form-control" name="new_password" placeholder="Leave blank to keep current password">
                 </div>
                 <div class="d-flex gap-3 mb-3 form-row-custom">
                     <div style="flex:1;">

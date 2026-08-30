@@ -204,9 +204,9 @@
                 {% for t in transactions %}
                 <tr>
                     <td data-label="Date" style="color:var(--text-muted); white-space: nowrap;">{{ t.transaction_date.strftime('%d %b %Y') if t.transaction_date else '—' }}</td>
-                    <td data-label="Property" style="max-width: 150px;" class="custom-tooltip" data-title="{{ t.property_name }}">
-                        <div style="display:flex; align-items:center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-                            <strong style="color:var(--primary); font-size:0.8rem;">{{ t.property_name }}</strong>
+                    <td data-label="Property">
+                        <div style="display:flex; align-items:center;">
+                            <strong style="color:var(--primary); font-size:0.8rem; word-break: break-word;">{{ t.property_name }}</strong>
                         </div>
                         {% if t.basic_price %}
                         <div style="font-size: 0.72rem; color: var(--text-muted);">Val: {{ format_inr(t.basic_price) }}</div>

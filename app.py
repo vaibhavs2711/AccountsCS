@@ -819,6 +819,7 @@ def admin_update_employee(id):
     team_type = request.form.get('team_type', '')
     target_multiplier_str = request.form.get('target_multiplier', '7.0')
     commission_rate_str = request.form.get('commission_rate', '20.0')
+    new_password = request.form.get('new_password', '').strip()
 
     # Get optional error flash location
     success_redirect = request.form.get('success_redirect', '')
@@ -849,6 +850,10 @@ def admin_update_employee(id):
         'target_multiplier': target_multiplier,
         'commission_rate': commission_rate
     }
+    
+    if new_password:
+        data['password_hash'] = hash_password(new_password)
+
     models.update_user(id, data)
     
     # Recalculate quarterly commissions since details changed
@@ -859,6 +864,20 @@ def admin_update_employee(id):
 
     session['emp_success'] = 'Employee details updated successfully!'
     return redirect(url_for('admin_employee_detail', id=id))
+
+
+@app.route('/admin/employee/<int:id>/delete', methods=['POST'])
+@admin_required
+def admin_delete_employee(id):
+    """Delete an employee and all their associated records."""
+    employee = models.get_user_by_id(id)
+    if not employee or employee['role'] == 'ADMIN':
+        session['emp_error'] = 'Cannot delete admin or non-existent user.'
+        return redirect(url_for('admin_employees'))
+        
+    models.delete_user(id)
+    session['emp_success'] = f'Employee {employee["name"]} deleted successfully.'
+    return redirect(url_for('admin_employees'))
 
 
 @app.route('/admin/transactions/<int:id>/delete', methods=['POST'])

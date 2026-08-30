@@ -454,25 +454,36 @@ def update_user(user_id: int, data: dict):
     db = get_db()
     try:
         with db.cursor() as cur:
-            cur.execute(
-                """UPDATE users SET
-                    name = %s,
-                    email = %s,
-                    salary = %s,
-                    team_type = %s,
-                    target_multiplier = %s,
-                    commission_rate = %s
-                   WHERE id = %s""",
-                (
-                    data['name'],
-                    data['email'],
-                    data['salary'],
-                    data['team_type'],
-                    data['target_multiplier'],
-                    data['commission_rate'],
-                    user_id
+            if 'password_hash' in data:
+                cur.execute(
+                    """UPDATE users SET
+                        name = %s, email = %s, salary = %s, team_type = %s,
+                        target_multiplier = %s, commission_rate = %s, password = %s
+                       WHERE id = %s""",
+                    (data['name'], data['email'], data['salary'], data['team_type'],
+                     data['target_multiplier'], data['commission_rate'], data['password_hash'], user_id)
                 )
-            )
+            else:
+                cur.execute(
+                    """UPDATE users SET
+                        name = %s, email = %s, salary = %s, team_type = %s,
+                        target_multiplier = %s, commission_rate = %s
+                       WHERE id = %s""",
+                    (data['name'], data['email'], data['salary'], data['team_type'],
+                     data['target_multiplier'], data['commission_rate'], user_id)
+                )
+    finally:
+        db.close()
+
+
+def delete_user(user_id: int):
+    """Delete a user and all their associated records (leaves, transactions, commissions)."""
+    db = get_db()
+    try:
+        with db.cursor() as cur:
+            cur.execute("DELETE FROM leave_requests WHERE employee_id = %s", (user_id,))
+            cur.execute("DELETE FROM transactions WHERE employee_id = %s", (user_id,))
+            cur.execute("DELETE FROM users WHERE id = %s", (user_id,))
     finally:
         db.close()
 
