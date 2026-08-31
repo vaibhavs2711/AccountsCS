@@ -321,7 +321,7 @@ def admin_add_transaction():
         buyer_gst_applied=buyer_gst_applied,
         seller_amount=seller_amount,
         seller_gst_applied=seller_gst_applied,
-        commission_rate=employee['commission_rate']
+        commission_rate=employee.get('commission_rate', 0.20)
     )
 
     # Date fields
@@ -475,8 +475,8 @@ def admin_employee_detail(id):
 
     tc = TEAM_CONFIG.get(employee['team_type'], {})
     team_label = tc.get('label', employee['team_type'] or '-')
-    multiplier = employee['target_multiplier']
-    commission_rate = int(employee['commission_rate'] * 100)
+    multiplier = employee.get('target_multiplier', 7)
+    commission_rate = int(employee.get('commission_rate', 0.20) * 100)
 
     comm = models.get_commission_summary(id)
 
