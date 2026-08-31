@@ -108,10 +108,12 @@ def create_transaction(data: dict):
                     cityscope_commission, buyer_commission_amount,
                     buyer_commission_received, buyer_commission_date, buyer_gst_applied,
                     seller_commission_amount, seller_commission_received,
-                    seller_commission_date, seller_gst_applied, gst_applied, net_commission,
+                    seller_commission_date, seller_gst_applied,
+                    buyer_name, seller_name, buyer_is_broker, seller_is_broker,
+                    gst_applied, net_commission,
                     employee_commission, payment_status, transaction_date, month, year, quarter,
                     employee_id)
-                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
                 (
                     data['property_id'], data['property_name'], data.get('basic_price', 0),
                     data['cityscope_commission'], data.get('buyer_commission_amount', 0),
@@ -119,7 +121,10 @@ def create_transaction(data: dict):
                     data.get('buyer_gst_applied', 0),
                     data.get('seller_commission_amount', 0),
                     data.get('seller_commission_received', 0), data.get('seller_commission_date') or None,
-                    data.get('seller_gst_applied', 0), data.get('gst_applied', 0), data['net_commission'],
+                    data.get('seller_gst_applied', 0),
+                    data.get('buyer_name') or None, data.get('seller_name') or None,
+                    data.get('buyer_is_broker', 0), data.get('seller_is_broker', 0),
+                    data.get('gst_applied', 0), data['net_commission'],
                     data['employee_commission'], data.get('payment_status', 'PENDING'),
                     data['transaction_date'], data['month'], data['year'], data['quarter'],
                     data['employee_id'],
@@ -140,7 +145,9 @@ def update_transaction(transaction_id: int, data: dict):
                     cityscope_commission = %s, buyer_commission_amount = %s,
                     buyer_commission_received = %s, buyer_commission_date = %s, buyer_gst_applied = %s,
                     seller_commission_amount = %s, seller_commission_received = %s,
-                    seller_commission_date = %s, seller_gst_applied = %s, gst_applied = %s, net_commission = %s,
+                    seller_commission_date = %s, seller_gst_applied = %s,
+                    buyer_name = %s, seller_name = %s, buyer_is_broker = %s, seller_is_broker = %s,
+                    gst_applied = %s, net_commission = %s,
                     employee_commission = %s, transaction_date = %s, month = %s, year = %s, quarter = %s,
                     employee_id = %s, payment_status = %s
                    WHERE id = %s""",
@@ -151,7 +158,10 @@ def update_transaction(transaction_id: int, data: dict):
                     data.get('buyer_gst_applied', 0),
                     data.get('seller_commission_amount', 0),
                     data.get('seller_commission_received', 0), data.get('seller_commission_date') or None,
-                    data.get('seller_gst_applied', 0), data.get('gst_applied', 0), data['net_commission'],
+                    data.get('seller_gst_applied', 0),
+                    data.get('buyer_name') or None, data.get('seller_name') or None,
+                    data.get('buyer_is_broker', 0), data.get('seller_is_broker', 0),
+                    data.get('gst_applied', 0), data['net_commission'],
                     data['employee_commission'],
                     data['transaction_date'], data['month'], data['year'], data['quarter'],
                     data['employee_id'], data.get('payment_status', 'PENDING'),
@@ -479,11 +489,13 @@ def update_user(user_id: int, data: dict):
 
 
 def delete_user(user_id: int):
-    """Delete a user and all their associated records (leaves, transactions, commissions)."""
+    """Delete a user and all their associated records (leaves, transactions, commissions, payouts, advances)."""
     db = get_db()
     try:
         with db.cursor() as cur:
             cur.execute("DELETE FROM leave_requests WHERE employee_id = %s", (user_id,))
+            cur.execute("DELETE FROM commission_payouts WHERE employee_id = %s", (user_id,))
+            cur.execute("DELETE FROM advances WHERE employee_id = %s", (user_id,))
             cur.execute("DELETE FROM transactions WHERE employee_id = %s", (user_id,))
             cur.execute("DELETE FROM users WHERE id = %s", (user_id,))
     finally:
@@ -643,3 +655,193 @@ def settle_transaction(transaction_id: int):
     finally:
         db.close()
 
+
+# ========================= COMMISSION PAYOUTS ================================
+
+def mark_employee_commission_paid(transaction_id: int, employee_id: int, amount: float, paid_date: str, notes: str = None):
+    """Record that Cityscope paid the employee their commission for a transaction."""
+    db = get_db()
+    try:
+        with db.cursor() as cur:
+            cur.execute(
+                """INSERT INTO commission_payouts (transaction_id, employee_id, amount, paid_date, notes)
+                   VALUES (%s, %s, %s, %s, %s)""",
+                (transaction_id, employee_id, amount, paid_date, notes)
+            )
+            cur.execute(
+                "UPDATE transactions SET emp_payout_status = 'PAID' WHERE id = %s",
+                (transaction_id,)
+            )
+    finally:
+        db.close()
+
+
+def mark_employee_commission_unpaid(transaction_id: int):
+    """Revert employee payout — delete payout record and set status back to UNPAID."""
+    db = get_db()
+    try:
+        with db.cursor() as cur:
+            cur.execute(
+                "DELETE FROM commission_payouts WHERE transaction_id = %s",
+                (transaction_id,)
+            )
+            cur.execute(
+                "UPDATE transactions SET emp_payout_status = 'UNPAID' WHERE id = %s",
+                (transaction_id,)
+            )
+    finally:
+        db.close()
+
+
+def get_employee_payout_summary(employee_id: int):
+    """Return payout totals for an employee: total earned, total paid out, total unpaid."""
+    db = get_db()
+    try:
+        with db.cursor() as cur:
+            # Total earned commission
+            cur.execute(
+                """SELECT COALESCE(SUM(employee_commission), 0) AS total_earned
+                   FROM transactions WHERE employee_id = %s""",
+                (employee_id,)
+            )
+            total_earned = cur.fetchone()['total_earned']
+
+            # Total paid out
+            cur.execute(
+                """SELECT COALESCE(SUM(employee_commission), 0) AS total_paid
+                   FROM transactions WHERE employee_id = %s AND emp_payout_status = 'PAID'""",
+                (employee_id,)
+            )
+            total_paid = cur.fetchone()['total_paid']
+
+            # Total unpaid
+            cur.execute(
+                """SELECT COALESCE(SUM(employee_commission), 0) AS total_unpaid
+                   FROM transactions WHERE employee_id = %s AND emp_payout_status = 'UNPAID'""",
+                (employee_id,)
+            )
+            total_unpaid = cur.fetchone()['total_unpaid']
+
+            return {
+                'total_earned': total_earned,
+                'total_paid': total_paid,
+                'total_unpaid': total_unpaid,
+            }
+    finally:
+        db.close()
+
+
+def get_payouts_by_employee(employee_id: int):
+    """Return all payout records for an employee, ordered by date desc."""
+    db = get_db()
+    try:
+        with db.cursor() as cur:
+            cur.execute(
+                """SELECT cp.*, t.property_name, t.property_id
+                   FROM commission_payouts cp
+                   JOIN transactions t ON cp.transaction_id = t.id
+                   WHERE cp.employee_id = %s
+                   ORDER BY cp.paid_date DESC""",
+                (employee_id,)
+            )
+            return cur.fetchall()
+    finally:
+        db.close()
+
+
+# ========================= ADVANCES ==========================================
+
+def create_advance(employee_id: int, advance_type: str, amount: float, advance_date: str, reason: str = None):
+    """Record a salary or commission advance given to an employee."""
+    db = get_db()
+    try:
+        with db.cursor() as cur:
+            cur.execute(
+                """INSERT INTO advances (employee_id, advance_type, amount, advance_date, reason)
+                   VALUES (%s, %s, %s, %s, %s)""",
+                (employee_id, advance_type, amount, advance_date, reason)
+            )
+            return cur.lastrowid
+    finally:
+        db.close()
+
+
+def get_advances_by_employee(employee_id: int):
+    """Return all advances for an employee, ordered by date desc."""
+    db = get_db()
+    try:
+        with db.cursor() as cur:
+            cur.execute(
+                """SELECT * FROM advances
+                   WHERE employee_id = %s
+                   ORDER BY advance_date DESC""",
+                (employee_id,)
+            )
+            return cur.fetchall()
+    finally:
+        db.close()
+
+
+def get_all_advances():
+    """Return all advances with employee name, ordered by date desc."""
+    db = get_db()
+    try:
+        with db.cursor() as cur:
+            cur.execute(
+                """SELECT a.*, u.name AS employee_name
+                   FROM advances a
+                   JOIN users u ON a.employee_id = u.id
+                   ORDER BY a.advance_date DESC"""
+            )
+            return cur.fetchall()
+    finally:
+        db.close()
+
+
+def settle_advance(advance_id: int):
+    """Mark an advance as settled."""
+    db = get_db()
+    try:
+        with db.cursor() as cur:
+            cur.execute(
+                "UPDATE advances SET status = 'SETTLED' WHERE id = %s",
+                (advance_id,)
+            )
+    finally:
+        db.close()
+
+
+def delete_advance(advance_id: int):
+    """Delete an advance record."""
+    db = get_db()
+    try:
+        with db.cursor() as cur:
+            cur.execute("DELETE FROM advances WHERE id = %s", (advance_id,))
+    finally:
+        db.close()
+
+
+def get_active_advances_total(employee_id: int) -> float:
+    """Return sum of active (unsettled) advances for an employee."""
+    db = get_db()
+    try:
+        with db.cursor() as cur:
+            cur.execute(
+                """SELECT COALESCE(SUM(amount), 0) AS total
+                   FROM advances WHERE employee_id = %s AND status = 'ACTIVE'""",
+                (employee_id,)
+            )
+            return cur.fetchone()['total']
+    finally:
+        db.close()
+
+
+def get_advance_by_id(advance_id: int):
+    """Fetch an advance by ID."""
+    db = get_db()
+    try:
+        with db.cursor() as cur:
+            cur.execute("SELECT * FROM advances WHERE id = %s", (advance_id,))
+            return cur.fetchone()
+    finally:
+        db.close()

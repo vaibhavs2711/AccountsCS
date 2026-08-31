@@ -255,6 +255,10 @@ def admin_add_transaction():
     seller_amount_str = request.form.get('seller_commission_amount', '')
     buyer_gst_applied = request.form.get('buyer_gst_applied') == '1'
     seller_gst_applied = request.form.get('seller_gst_applied') == '1'
+    buyer_name = request.form.get('buyer_name', '').strip() or None
+    seller_name = request.form.get('seller_name', '').strip() or None
+    buyer_is_broker = request.form.get('buyer_is_broker') == '1'
+    seller_is_broker = request.form.get('seller_is_broker') == '1'
 
     # Retrieve payment installments
     buyer_payment_amounts = request.form.getlist('buyer_payment_amounts')
@@ -357,6 +361,10 @@ def admin_add_transaction():
         'seller_commission_date': seller_date,
         'buyer_gst_applied': int(buyer_gst_applied),
         'seller_gst_applied': int(seller_gst_applied),
+        'buyer_name': buyer_name,
+        'seller_name': seller_name,
+        'buyer_is_broker': int(buyer_is_broker),
+        'seller_is_broker': int(seller_is_broker),
         'gst_applied': 0,
         'net_commission': net_commission,
         'employee_commission': employee_commission,
@@ -510,6 +518,12 @@ def admin_employee_detail(id):
     transactions = models.get_transactions_by_employee(id)
     leaves = models.get_leaves_by_employee(id)
 
+    # Payout & advance data
+    payout_summary = models.get_employee_payout_summary(id)
+    advances = models.get_advances_by_employee(id)
+    active_advances_total = models.get_active_advances_total(id)
+    today = datetime.now().strftime('%Y-%m-%d')
+
     success = session.pop('emp_success', None)
     error = session.pop('emp_error', None)
 
@@ -536,8 +550,112 @@ def admin_employee_detail(id):
         quarter=quarter,
         fy_year=fy_year,
         success=success,
-        error=error
+        error=error,
+        payout_summary=payout_summary,
+        advances=advances,
+        active_advances_total=active_advances_total,
+        today=today,
     )
+
+# ---------------------------------------------------------------------------
+# COMMISSION PAYOUT ROUTES
+# ---------------------------------------------------------------------------
+
+@app.route('/admin/transactions/<int:id>/pay-employee', methods=['POST'])
+@admin_required
+def admin_pay_employee_commission(id):
+    """Mark employee commission as paid for a transaction."""
+    txn = models.get_transaction_by_id(id)
+    if not txn:
+        session['txn_error'] = 'Transaction not found.'
+        return redirect(request.referrer or url_for('admin_transactions'))
+
+    paid_date = request.form.get('paid_date', datetime.now().strftime('%Y-%m-%d'))
+    notes = request.form.get('notes', '').strip() or None
+    amount = txn['employee_commission']
+
+    models.mark_employee_commission_paid(id, txn['employee_id'], amount, paid_date, notes)
+    session['emp_success'] = f'Commission {format_inr(amount)} marked as paid.'
+    return redirect(request.referrer or url_for('admin_employee_detail', id=txn['employee_id']))
+
+
+@app.route('/admin/transactions/<int:id>/unpay-employee', methods=['POST'])
+@admin_required
+def admin_unpay_employee_commission(id):
+    """Revert employee commission payout for a transaction."""
+    txn = models.get_transaction_by_id(id)
+    if not txn:
+        session['txn_error'] = 'Transaction not found.'
+        return redirect(request.referrer or url_for('admin_transactions'))
+
+    models.mark_employee_commission_unpaid(id)
+    session['emp_success'] = 'Commission payout reverted to unpaid.'
+    return redirect(request.referrer or url_for('admin_employee_detail', id=txn['employee_id']))
+
+
+# ---------------------------------------------------------------------------
+# ADVANCE ROUTES
+# ---------------------------------------------------------------------------
+
+@app.route('/admin/employee/<int:id>/advance', methods=['POST'])
+@admin_required
+def admin_add_advance(id):
+    """Record a salary or commission advance for an employee."""
+    employee = models.get_user_by_id(id)
+    if not employee or employee['role'] != 'EMPLOYEE':
+        session['emp_error'] = 'Invalid employee.'
+        return redirect(url_for('admin_employees'))
+
+    advance_type = request.form.get('advance_type', 'SALARY')
+    amount_str = request.form.get('amount', '0')
+    advance_date = request.form.get('advance_date', datetime.now().strftime('%Y-%m-%d'))
+    reason = request.form.get('reason', '').strip() or None
+
+    if advance_type not in ('SALARY', 'COMMISSION'):
+        session['emp_error'] = 'Invalid advance type.'
+        return redirect(url_for('admin_employee_detail', id=id))
+
+    try:
+        amount = float(amount_str)
+        if amount <= 0:
+            raise ValueError
+    except ValueError:
+        session['emp_error'] = 'Invalid amount.'
+        return redirect(url_for('admin_employee_detail', id=id))
+
+    models.create_advance(id, advance_type, amount, advance_date, reason)
+    session['emp_success'] = f'{advance_type.title()} advance of {format_inr(amount)} recorded.'
+    return redirect(url_for('admin_employee_detail', id=id))
+
+
+@app.route('/admin/advance/<int:id>/settle', methods=['POST'])
+@admin_required
+def admin_settle_advance(id):
+    """Settle an advance."""
+    advance = models.get_advance_by_id(id)
+    if not advance:
+        session['emp_error'] = 'Advance not found.'
+        return redirect(request.referrer or url_for('admin_dashboard'))
+
+    models.settle_advance(id)
+    session['emp_success'] = 'Advance marked as settled.'
+    return redirect(url_for('admin_employee_detail', id=advance['employee_id']))
+
+
+@app.route('/admin/advance/<int:id>/delete', methods=['POST'])
+@admin_required
+def admin_delete_advance(id):
+    """Delete an advance record."""
+    advance = models.get_advance_by_id(id)
+    if not advance:
+        session['emp_error'] = 'Advance not found.'
+        return redirect(request.referrer or url_for('admin_dashboard'))
+
+    emp_id = advance['employee_id']
+    models.delete_advance(id)
+    session['emp_success'] = 'Advance deleted.'
+    return redirect(url_for('admin_employee_detail', id=emp_id))
+
 
 # ---------------------------------------------------------------------------
 # EMPLOYEE ROUTES
@@ -560,6 +678,11 @@ def employee_dashboard():
 
     # Commission summary
     comm = models.get_commission_summary(employee['id'])
+
+    # Payout & advance data
+    payout_summary = models.get_employee_payout_summary(employee['id'])
+    advances = models.get_advances_by_employee(employee['id'])
+    active_advances_total = models.get_active_advances_total(employee['id'])
 
     # Monthly target
     m_target = get_monthly_target(employee['salary'], target_multiplier=multiplier)
@@ -599,6 +722,9 @@ def employee_dashboard():
         quarterly_remaining=format_inr(q_remaining),
         transactions=transactions,
         month_names=MONTH_NAMES,
+        payout_summary=payout_summary,
+        advances=advances,
+        active_advances_total=active_advances_total,
     )
 
 

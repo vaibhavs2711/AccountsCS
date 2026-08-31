@@ -119,7 +119,7 @@ def get_quarterly_target(salary: float, team_type: str = None, target_multiplier
 # ---------------------------------------------------------------------------
 
 def format_inr(amount) -> str:
-    """Format a number as Indian Rupees: ₹X,XX,XXX.
+    """Format a number as Indian Rupees: ₹X,XX,XXX or ₹X,XX,XXX.XX when decimals exist.
 
     Uses the Indian grouping system (last 3 digits, then groups of 2).
     """
@@ -128,16 +128,29 @@ def format_inr(amount) -> str:
     amount = float(amount)
     if amount < 0:
         return '-₹' + format_inr(-amount)[1:]
-    s = str(int(round(amount)))
+    
+    # Check if decimal values exist
+    has_decimal = abs(amount - round(amount)) > 0.001
+    if has_decimal:
+        int_part = int(amount)
+        dec_part = f"{amount - int_part:.2f}"[1:]  # e.g. '.60' or '.28'
+    else:
+        int_part = int(round(amount))
+        dec_part = ""
+
+    s = str(int_part)
     if len(s) <= 3:
-        return '₹' + s
-    last3 = s[-3:]
-    rest = s[:-3]
-    groups = []
-    while rest:
-        groups.insert(0, rest[-2:])
-        rest = rest[:-2]
-    return '₹' + ','.join(groups) + ',' + last3
+        formatted_int = s
+    else:
+        last3 = s[-3:]
+        rest = s[:-3]
+        groups = []
+        while rest:
+            groups.insert(0, rest[-2:])
+            rest = rest[:-2]
+        formatted_int = ','.join(groups) + ',' + last3
+
+    return '₹' + formatted_int + dec_part
 
 
 # ---------------------------------------------------------------------------

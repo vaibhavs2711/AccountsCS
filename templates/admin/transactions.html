@@ -94,6 +94,27 @@
                 </div>
             </div>
         </div>
+        <!-- Buyer & Seller Name + Broker Checkboxes -->
+        <div class="d-flex gap-3 mb-3 form-row-custom">
+            <div style="flex:1;">
+                <label class="form-label" style="font-size:0.85rem; font-weight:600;">Buyer Name</label>
+                <div style="display:flex; gap:8px; align-items:center;">
+                    <input type="text" class="form-control" name="buyer_name" placeholder="Buyer Name" value="{{ request.form.get('buyer_name', '') }}">
+                    <label style="font-size:0.75rem; font-weight:600; white-space:nowrap; display:flex; align-items:center; gap:4px; margin:0; cursor:pointer; background:#f1f5f9; padding:6px 10px; border-radius:6px; border:1px solid #cbd5e1;" title="Check if Buyer side deal is with another Broker">
+                        <input type="checkbox" name="buyer_is_broker" value="1" {% if request.form.get('buyer_is_broker') %}checked{% endif %}> Broker
+                    </label>
+                </div>
+            </div>
+            <div style="flex:1;">
+                <label class="form-label" style="font-size:0.85rem; font-weight:600;">Seller Name</label>
+                <div style="display:flex; gap:8px; align-items:center;">
+                    <input type="text" class="form-control" name="seller_name" placeholder="Seller Name" value="{{ request.form.get('seller_name', '') }}">
+                    <label style="font-size:0.75rem; font-weight:600; white-space:nowrap; display:flex; align-items:center; gap:4px; margin:0; cursor:pointer; background:#f1f5f9; padding:6px 10px; border-radius:6px; border:1px solid #cbd5e1;" title="Check if Seller side deal is with another Broker">
+                        <input type="checkbox" name="seller_is_broker" value="1" {% if request.form.get('seller_is_broker') %}checked{% endif %}> Broker
+                    </label>
+                </div>
+            </div>
+        </div>
         <div class="d-flex gap-3 mb-3 form-row-custom">
             <div style="flex:1;">
                 <label class="form-label" style="font-size:0.85rem; font-weight:600;">Total Company Commission ₹</label>
@@ -198,7 +219,7 @@
                     <th style="white-space: nowrap;">Employee</th>
                     <th>GST</th>
                     <th style="white-space: nowrap;">Net Commission</th>
-                    <th style="white-space: nowrap;">Emp. Share <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-bottom:-2px; opacity:0.6;"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg></th>
+                    <th style="white-space: nowrap;">Emp. Share</th>
                     <th style="white-space: nowrap;">Buyer ₹</th>
                     <th style="white-space: nowrap;">Seller ₹</th>
                     <th>Status</th>
@@ -237,25 +258,18 @@
                     <td data-label="Net Commission" style="white-space: nowrap;">{{ format_inr(t.net_commission) }}</td>
                     <td data-label="Emp. Share" style="white-space: nowrap;">
                         <strong class="text-primary-custom">{{ format_inr(t.employee_commission) }}</strong>
-                        <div style="margin-top: 4px;">
-                            {% if t.net_commission > 0 %}
-                                {% set eff_pct = (t.employee_commission / t.net_commission * 100) | round(1) %}
-                                {% set base_pct = 30 if t.team_type == 'CORE_TEAM' else 20 %}
-                                {% if eff_pct < base_pct %}
-                                    <span class="badge-rejected" style="display: inline-block; white-space: nowrap; font-size:0.7rem; padding: 2px 6px; border: 1px solid var(--danger); background-color: #fef2f2; color: #ef4444;" class="custom-tooltip" data-title="Scaled down from {{ base_pct }}% due to target progress.">
-                                        {{ eff_pct }}% (scaled)
-                                    </span>
-                                {% else %}
-                                    <span class="badge-rejected" style="display: inline-block; white-space: nowrap; font-size:0.7rem; padding: 2px 6px; border: 1px solid var(--success); background-color: #f0fdf4; color: #15803d;">
-                                        {{ eff_pct }}%
-                                    </span>
-                                {% endif %}
-                            {% else %}
-                                —
-                            {% endif %}
-                        </div>
                     </td>
                     <td data-label="Buyer" style="white-space: nowrap; line-height: 1.4; font-size: 0.8rem;">
+                        {% if t.buyer_name %}
+                        <div style="font-weight: 600; color: var(--text); font-size: 0.82rem; margin-bottom: 2px;">
+                            {{ t.buyer_name }}
+                            {% if t.buyer_is_broker %}
+                            <span style="background: #e0e7ff; color: #3730a3; padding: 1px 6px; border-radius: 10px; font-size: 0.65rem; font-weight: 700; margin-left: 4px;">Broker</span>
+                            {% endif %}
+                        </div>
+                        {% elif t.buyer_is_broker %}
+                        <div style="margin-bottom: 2px;"><span style="background: #e0e7ff; color: #3730a3; padding: 1px 6px; border-radius: 10px; font-size: 0.65rem; font-weight: 700;">Broker</span></div>
+                        {% endif %}
                         <div>Total: <strong>{{ format_inr(t.buyer_commission_amount) if t.buyer_commission_amount else '—' }}</strong></div>
                         <div style="color: var(--success); font-size: 0.75rem;">Recv: {{ format_inr(t.buyer_commission_received) }}</div>
                         {% set buyer_pending = t.buyer_commission_amount - t.buyer_commission_received %}
@@ -269,6 +283,16 @@
                         {% endif %}
                     </td>
                     <td data-label="Seller" style="white-space: nowrap; line-height: 1.4; font-size: 0.8rem;">
+                        {% if t.seller_name %}
+                        <div style="font-weight: 600; color: var(--text); font-size: 0.82rem; margin-bottom: 2px;">
+                            {{ t.seller_name }}
+                            {% if t.seller_is_broker %}
+                            <span style="background: #e0e7ff; color: #3730a3; padding: 1px 6px; border-radius: 10px; font-size: 0.65rem; font-weight: 700; margin-left: 4px;">Broker</span>
+                            {% endif %}
+                        </div>
+                        {% elif t.seller_is_broker %}
+                        <div style="margin-bottom: 2px;"><span style="background: #e0e7ff; color: #3730a3; padding: 1px 6px; border-radius: 10px; font-size: 0.65rem; font-weight: 700;">Broker</span></div>
+                        {% endif %}
                         <div>Total: <strong>{{ format_inr(t.seller_commission_amount) if t.seller_commission_amount else '—' }}</strong></div>
                         <div style="color: var(--success); font-size: 0.75rem;">Recv: {{ format_inr(t.seller_commission_received) }}</div>
                         {% set seller_pending = t.seller_commission_amount - t.seller_commission_received %}
@@ -289,10 +313,16 @@
                         {% else %}
                         <span class="status-badge pending">PENDING</span>
                         {% endif %}
+                        <br>
+                        {% if t.emp_payout_status == 'PAID' %}
+                        <span style="background:#dcfce7; color:#166534; padding: 3px 8px; border-radius: 20px; font-size: 0.68rem; font-weight: 600; margin-top: 4px; display: inline-block;">💰 Emp Paid</span>
+                        {% else %}
+                        <span style="background:#fef3c7; color:#92400e; padding: 3px 8px; border-radius: 20px; font-size: 0.68rem; font-weight: 600; margin-top: 4px; display: inline-block;">⏳ Emp Unpaid</span>
+                        {% endif %}
                     </td>
                     <td class="no-pdf" data-label="Action" style="white-space: nowrap;">
                         <div style="display:flex; align-items:center; gap:8px; flex-wrap: nowrap;">
-                            <button type="button" class="btn-primary-sm" style="background:#0f172a; border-radius:20px; padding:4px 14px; white-space: nowrap; flex-shrink: 0; height: auto; min-width: max-content;" onclick='editTransaction({{ t.id }}, {{ t.employee_id }}, "{{ t.property_id|replace('"', '\\"') }}", "{{ t.property_name|replace('"', '\\"') }}", "{{ t.transaction_date.strftime('%Y-%m-%d') if t.transaction_date else '' }}", {{ t.cityscope_commission }}, {{ t.buyer_commission_amount or 0 }}, {{ t.seller_commission_amount or 0 }}, {{ 1 if t.buyer_gst_applied else 0 }}, {{ 1 if t.seller_gst_applied else 0 }}, {{ t.buyer_commission_received or 0 }}, "{{ t.buyer_commission_date.strftime('%Y-%m-%d') if t.buyer_commission_date else '' }}", {{ t.seller_commission_received or 0 }}, "{{ t.seller_commission_date.strftime('%Y-%m-%d') if t.seller_commission_date else '' }}", {{ t.basic_price or 0 }})'>Edit</button>
+                            <button type="button" class="btn-primary-sm" style="background:#0f172a; border-radius:20px; padding:4px 14px; white-space: nowrap; flex-shrink: 0; height: auto; min-width: max-content;" onclick='editTransaction({{ t.id }}, {{ t.employee_id }}, "{{ t.property_id|replace('"', '\\"') }}", "{{ t.property_name|replace('"', '\\"') }}", "{{ t.transaction_date.strftime('%Y-%m-%d') if t.transaction_date else '' }}", {{ t.cityscope_commission }}, {{ t.buyer_commission_amount or 0 }}, {{ t.seller_commission_amount or 0 }}, {{ 1 if t.buyer_gst_applied else 0 }}, {{ 1 if t.seller_gst_applied else 0 }}, {{ t.buyer_commission_received or 0 }}, "{{ t.buyer_commission_date.strftime('%Y-%m-%d') if t.buyer_commission_date else '' }}", {{ t.seller_commission_received or 0 }}, "{{ t.seller_commission_date.strftime('%Y-%m-%d') if t.seller_commission_date else '' }}", {{ t.basic_price or 0 }}, "{{ (t.buyer_name or '')|replace('"', '\\"') }}", "{{ (t.seller_name or '')|replace('"', '\\"') }}", {{ 1 if t.buyer_is_broker else 0 }}, {{ 1 if t.seller_is_broker else 0 }})'>Edit</button>
                             <div class="dropdown-wrapper" style="position:relative;">
                                 <span class="action-menu" onclick="toggleDropdown(this)" style="flex-shrink:0; cursor:pointer;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"></circle><circle cx="12" cy="5" r="1"></circle><circle cx="12" cy="19" r="1"></circle></svg></span>
                                 <div class="dropdown-menu-custom" style="display:none; position:absolute; right:0; top:100%; background:#fff; border:1px solid #eee; border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,0.1); z-index:100; min-width:140px; padding:4px 0;">
@@ -307,6 +337,21 @@
                                         <button type="submit" style="width:100%; text-align:left; background:none; border:none; padding:8px 16px; font-size:0.8rem; cursor:pointer; color:var(--warning); display:flex; align-items:center; gap:8px;">
                                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--warning)" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
                                             Force Complete
+                                        </button>
+                                    </form>
+                                    {% endif %}
+                                    {% if t.emp_payout_status == 'UNPAID' %}
+                                    <form method="POST" action="{{ url_for('admin_pay_employee_commission', id=t.id) }}" style="margin:0;">
+                                        <button type="submit" style="width:100%; text-align:left; background:none; border:none; padding:8px 16px; font-size:0.8rem; cursor:pointer; color:#166534; display:flex; align-items:center; gap:8px;" onclick="return confirm('Pay employee commission for this deal?')">
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#166534" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
+                                            Pay Employee
+                                        </button>
+                                    </form>
+                                    {% else %}
+                                    <form method="POST" action="{{ url_for('admin_unpay_employee_commission', id=t.id) }}" style="margin:0;">
+                                        <button type="submit" style="width:100%; text-align:left; background:none; border:none; padding:8px 16px; font-size:0.8rem; cursor:pointer; color:#92400e; display:flex; align-items:center; gap:8px;" onclick="return confirm('Revert employee payout?')">
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#92400e" stroke-width="2"><path d="M1 4v6h6"></path><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>
+                                            Undo Emp Payout
                                         </button>
                                     </form>
                                     {% endif %}
@@ -392,6 +437,16 @@ function openAddModal() {
     document.getElementById('hidden_employee_id').value = '';
     document.getElementById('selected-employee-text').innerHTML = `<span style="color: var(--text-muted);">— Select Employee —</span>`;
     
+    // Reset Name/Broker controls
+    var b_name = document.querySelector('input[name="buyer_name"]');
+    var s_name = document.querySelector('input[name="seller_name"]');
+    var b_brk = document.querySelector('input[name="buyer_is_broker"]');
+    var s_brk = document.querySelector('input[name="seller_is_broker"]');
+    if (b_name) b_name.value = '';
+    if (s_name) s_name.value = '';
+    if (b_brk) b_brk.checked = false;
+    if (s_brk) s_brk.checked = false;
+    
     // Reset installment containers
     document.getElementById('buyer-payments-container').innerHTML = '';
     document.getElementById('seller-payments-container').innerHTML = '';
@@ -428,7 +483,7 @@ function updateTotalCommission() {
 
 
 
-function editTransaction(id, employee_id, property_id, property_name, transaction_date, cs_commission, buyer_commission, seller_commission, buyer_gst_applied, seller_gst_applied, buyer_received, buyer_date, seller_received, seller_date, basic_price) {
+function editTransaction(id, employee_id, property_id, property_name, transaction_date, cs_commission, buyer_commission, seller_commission, buyer_gst_applied, seller_gst_applied, buyer_received, buyer_date, seller_received, seller_date, basic_price, buyer_name, seller_name, buyer_is_broker, seller_is_broker) {
     document.getElementById('form-title').innerText = 'Edit Transaction';
     document.getElementById('transaction_id').value = id;
     
@@ -447,6 +502,15 @@ function editTransaction(id, employee_id, property_id, property_name, transactio
     document.querySelector('input[name="seller_commission_amount"]').value = seller_commission || '';
     document.querySelector('input[name="buyer_gst_applied"]').checked = (buyer_gst_applied === 1);
     document.querySelector('input[name="seller_gst_applied"]').checked = (seller_gst_applied === 1);
+    
+    var b_name = document.querySelector('input[name="buyer_name"]');
+    var s_name = document.querySelector('input[name="seller_name"]');
+    var b_brk = document.querySelector('input[name="buyer_is_broker"]');
+    var s_brk = document.querySelector('input[name="seller_is_broker"]');
+    if (b_name) b_name.value = buyer_name || '';
+    if (s_name) s_name.value = seller_name || '';
+    if (b_brk) b_brk.checked = (buyer_is_broker === 1 || buyer_is_broker === true);
+    if (s_brk) s_brk.checked = (seller_is_broker === 1 || seller_is_broker === true);
     
     // Lock agreed amounts
     var b_amt = document.querySelector('input[name="buyer_commission_amount"]');

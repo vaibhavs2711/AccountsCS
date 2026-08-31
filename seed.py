@@ -76,6 +76,10 @@ def run_seed():
                     seller_commission_date DATE NULL,
                     buyer_gst_applied TINYINT(1) NOT NULL DEFAULT 0,
                     seller_gst_applied TINYINT(1) NOT NULL DEFAULT 0,
+                    buyer_name VARCHAR(255) NULL,
+                    seller_name VARCHAR(255) NULL,
+                    buyer_is_broker TINYINT(1) NOT NULL DEFAULT 0,
+                    seller_is_broker TINYINT(1) NOT NULL DEFAULT 0,
                     gst_applied TINYINT(1) NOT NULL DEFAULT 0,
                     net_commission DOUBLE NOT NULL,
                     employee_commission DOUBLE NOT NULL,
@@ -93,6 +97,13 @@ def run_seed():
             print("✔ Table 'transactions' ensured.")
 
             # --- Migrations for existing databases ---
+            cur.execute("SHOW COLUMNS FROM transactions LIKE 'buyer_name'")
+            if cur.fetchone() is None:
+                cur.execute("ALTER TABLE transactions ADD COLUMN buyer_name VARCHAR(255) NULL")
+                cur.execute("ALTER TABLE transactions ADD COLUMN seller_name VARCHAR(255) NULL")
+                cur.execute("ALTER TABLE transactions ADD COLUMN buyer_is_broker TINYINT(1) NOT NULL DEFAULT 0")
+                cur.execute("ALTER TABLE transactions ADD COLUMN seller_is_broker TINYINT(1) NOT NULL DEFAULT 0")
+                print("✔ Buyer/Seller name & broker columns migrated on transactions.")
             # users table migrations
             cur.execute("SHOW COLUMNS FROM users LIKE 'team_type'")
             if cur.fetchone() is None:
@@ -182,6 +193,44 @@ def run_seed():
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
             """)
             print("✔ Table 'commission_payments' ensured.")
+
+            # --- commission_payouts (tracks Cityscope paying employees their share) ---
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS commission_payouts (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    transaction_id INT NOT NULL,
+                    employee_id INT NOT NULL,
+                    amount DOUBLE NOT NULL,
+                    paid_date DATE NOT NULL,
+                    notes TEXT NULL,
+                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (transaction_id) REFERENCES transactions(id) ON DELETE CASCADE,
+                    FOREIGN KEY (employee_id) REFERENCES users(id)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+            """)
+            print("✔ Table 'commission_payouts' ensured.")
+
+            # --- advances (salary / commission advances to employees) ---
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS advances (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    employee_id INT NOT NULL,
+                    advance_type ENUM('SALARY', 'COMMISSION') NOT NULL,
+                    amount DOUBLE NOT NULL,
+                    advance_date DATE NOT NULL,
+                    reason TEXT NULL,
+                    status ENUM('ACTIVE', 'SETTLED') NOT NULL DEFAULT 'ACTIVE',
+                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (employee_id) REFERENCES users(id)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+            """)
+            print("✔ Table 'advances' ensured.")
+
+            # --- Migration: emp_payout_status on transactions ---
+            cur.execute("SHOW COLUMNS FROM transactions LIKE 'emp_payout_status'")
+            if cur.fetchone() is None:
+                cur.execute("ALTER TABLE transactions ADD COLUMN emp_payout_status ENUM('UNPAID', 'PAID') NOT NULL DEFAULT 'UNPAID'")
+                print("✔ Column 'emp_payout_status' migrated on transactions.")
 
             # ----------------------------------------------------------
             # 3. Seed admin user (skip if already exists)

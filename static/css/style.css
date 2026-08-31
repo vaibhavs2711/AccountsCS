@@ -875,7 +875,8 @@ button:active, .btn:active {
 }
 
 .admin-main {
-    margin-left: 250px;
+    margin-left: 195px !important;
+    transition: margin-left 0.25s ease, padding 0.25s ease;
 }
 
 .btn-primary, .btn-primary:active, .btn-primary:focus {
@@ -912,27 +913,62 @@ button:active, .btn:active {
 }
 
 .sidebar {
-    width: 250px !important;
-}
-
-.sidebar .brand {
-    padding: 32px 24px 8px !important;
-}
-
-.sidebar .brand-sub {
-    padding: 0 24px 32px !important;
+    width: 195px !important;
+    transition: transform 0.25s ease;
 }
 
 .sidebar nav {
-    padding: 0 16px !important;
+    padding: 0 10px !important;
 }
 
 .sidebar nav a {
     display: flex !important;
     align-items: center !important;
-    gap: 12px !important;
+    gap: 8px !important;
+    padding: 8px 12px !important;
+    font-size: 0.84rem !important;
     border-radius: var(--radius) !important;
     margin-bottom: 4px !important;
+}
+
+/* Sidebar Desktop Collapse & Expand Controls */
+.sidebar-desktop-toggle:hover {
+    background: rgba(255, 255, 255, 0.25) !important;
+    color: #fff !important;
+}
+
+.sidebar-expand-btn {
+    display: none;
+    align-items: center;
+    gap: 6px;
+    background: var(--primary);
+    color: #fff;
+    border: none;
+    padding: 6px 14px;
+    border-radius: 8px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    margin-bottom: 16px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    transition: all 0.2s ease;
+}
+
+.sidebar-expand-btn:hover {
+    background: var(--accent);
+    color: #fff;
+}
+
+body.sidebar-collapsed .sidebar {
+    transform: translateX(-100%) !important;
+}
+
+body.sidebar-collapsed .admin-main {
+    margin-left: 0 !important;
+}
+
+body.sidebar-collapsed .sidebar-expand-btn {
+    display: inline-flex !important;
 }
 
 .sidebar nav a svg {

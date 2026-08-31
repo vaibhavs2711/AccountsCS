@@ -26,17 +26,57 @@
         <div class="emp-meta" style="font-size: 0.9rem; color: var(--text-muted); margin-top: 4px; font-weight: 600;">Salary: {{ salary_fmt }}</div>
     </div>
 
-    <!-- 2. Commission Summary -->
-    <div class="comm-grid" style="margin-bottom:16px;">
-        <div class="comm-card">
-            <div class="comm-value warning">{{ pending_commission }}</div>
-            <div class="comm-label">Commission Pending</div>
+    <!-- 2. Commission Payout Summary -->
+    <div class="card" style="margin-bottom: 16px;">
+        <div class="card-title" style="display: flex; align-items: center; gap: 8px;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg>
+            Commission from Cityscope
         </div>
-        <div class="comm-card">
-            <div class="comm-value success">{{ received_commission }}</div>
-            <div class="comm-label">Commission Received</div>
+        <div class="comm-grid" style="margin-bottom: 12px;">
+            <div class="comm-card" style="border-left: 3px solid var(--success);">
+                <div class="comm-value success">{{ format_inr(payout_summary.total_paid) }}</div>
+                <div class="comm-label">💰 Paid to You</div>
+            </div>
+            <div class="comm-card" style="border-left: 3px solid var(--warning);">
+                <div class="comm-value warning">{{ format_inr(payout_summary.total_unpaid) }}</div>
+                <div class="comm-label">⏳ Pending from Cityscope</div>
+            </div>
+        </div>
+        <div style="text-align: center; font-size: 0.8rem; color: var(--text-muted); padding-top: 4px; border-top: 1px dashed var(--border);">
+            Total Earned: <strong style="color: var(--text);">{{ format_inr(payout_summary.total_earned) }}</strong>
         </div>
     </div>
+
+    <!-- 2b. Advances Section (if any) -->
+    {% set active_advances = advances|selectattr('status', 'equalto', 'ACTIVE')|list %}
+    {% if active_advances|length > 0 or active_advances_total > 0 %}
+    <div class="card" style="margin-bottom: 16px; border-left: 3px solid var(--danger);">
+        <div class="card-title" style="display: flex; align-items: center; gap: 8px;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--danger)" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
+            Advance Balance
+        </div>
+        <div style="text-align: center; margin-bottom: 12px;">
+            <div style="font-size: 1.4rem; font-weight: 700; color: var(--danger);">{{ format_inr(active_advances_total) }}</div>
+            <div style="font-size: 0.78rem; color: var(--text-muted);">Outstanding Advance</div>
+        </div>
+        {% for adv in active_advances %}
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-top: 1px solid var(--border); font-size: 0.82rem;">
+            <div>
+                <span style="font-weight: 600;">{{ format_inr(adv.amount) }}</span>
+                <span style="background: {% if adv.advance_type == 'SALARY' %}#dbeafe{% else %}#fef3c7{% endif %}; color: {% if adv.advance_type == 'SALARY' %}#1d4ed8{% else %}#92400e{% endif %}; padding: 2px 8px; border-radius: 10px; font-size: 0.7rem; font-weight: 600; margin-left: 6px;">{{ adv.advance_type }}</span>
+            </div>
+            <div style="color: var(--text-muted); font-size: 0.75rem;">{{ adv.advance_date.strftime('%d %b %Y') }}</div>
+        </div>
+        {% if adv.reason %}
+        <div style="font-size: 0.75rem; color: var(--text-muted); padding-bottom: 4px;">{{ adv.reason }}</div>
+        {% endif %}
+        {% endfor %}
+        <div style="text-align: center; font-size: 0.75rem; color: var(--text-muted); margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--border);">
+            Net Pending: <strong style="color: var(--text);">{{ format_inr(payout_summary.total_unpaid - active_advances_total) }}</strong>
+            <span style="font-size: 0.7rem;">(Commission Pending − Advances)</span>
+        </div>
+    </div>
+    {% endif %}
 
     <!-- 3. Monthly Target -->
     <div class="card">
@@ -84,11 +124,20 @@
             <div class="txn-item">
                 <div class="txn-header">
                     <span class="txn-prop">{{ t.property_name }}</span>
-                    {% if t.payment_status == 'DONE' %}
-                        <span class="badge-done">✓ Paid</span>
-                    {% else %}
-                        <span class="badge-pending">⏳ Pending</span>
-                    {% endif %}
+                    <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+                        {% if t.emp_payout_status == 'PAID' %}
+                            <span class="badge-done" style="font-size: 0.7rem;">💰 Commission Paid</span>
+                        {% else %}
+                            <span class="badge-pending" style="font-size: 0.7rem;">⏳ Commission Unpaid</span>
+                        {% endif %}
+                        {% if t.payment_status == 'DONE' %}
+                            <span class="badge-done">✓ Deal Settled</span>
+                        {% elif t.payment_status == 'PARTIAL' %}
+                            <span class="badge-pending">◐ Partial</span>
+                        {% else %}
+                            <span class="badge-pending">⏳ Pending</span>
+                        {% endif %}
+                    </div>
                 </div>
                 <div class="txn-meta">
                     {{ t.property_id }} | {{ month_names[t.month] }} {{ t.year }}
@@ -110,13 +159,15 @@
                 <div class="txn-amounts" style="margin-top: 8px; font-size: 0.8rem; color: var(--text-muted); border-top: 1px dashed #e2e8f0; padding-top: 8px;">
                     <div style="display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; line-height: 1.5;">
                         <div>
-                            <strong>Buyer Brokerage:</strong> 
+                            <strong>Buyer:</strong> {% if t.buyer_name %}{{ t.buyer_name }}{% else %}—{% endif %}
+                            {% if t.buyer_is_broker %}<span style="background: #e0e7ff; color: #3730a3; padding: 1px 6px; border-radius: 10px; font-size: 0.65rem; font-weight: 700; margin-left: 4px;">Broker</span>{% endif %}<br>
                             Total: {{ format_inr(t.buyer_commission_amount) }} | 
                             Recv: <span style="color:var(--success); font-weight:600;">{{ format_inr(t.buyer_commission_received) }}</span> | 
                             Pend: <span style="color:var(--danger); font-weight:600;">{{ format_inr(t.buyer_commission_amount - t.buyer_commission_received) }}</span>
                         </div>
                         <div>
-                            <strong>Seller Brokerage:</strong> 
+                            <strong>Seller:</strong> {% if t.seller_name %}{{ t.seller_name }}{% else %}—{% endif %}
+                            {% if t.seller_is_broker %}<span style="background: #e0e7ff; color: #3730a3; padding: 1px 6px; border-radius: 10px; font-size: 0.65rem; font-weight: 700; margin-left: 4px;">Broker</span>{% endif %}<br>
                             Total: {{ format_inr(t.seller_commission_amount) }} | 
                             Recv: <span style="color:var(--success); font-weight:600;">{{ format_inr(t.seller_commission_received) }}</span> | 
                             Pend: <span style="color:var(--danger); font-weight:600;">{{ format_inr(t.seller_commission_amount - t.seller_commission_received) }}</span>
