@@ -253,7 +253,8 @@ def admin_add_transaction():
     cs_commission_str = request.form.get('cityscope_commission', '')
     buyer_amount_str = request.form.get('buyer_commission_amount', '')
     seller_amount_str = request.form.get('seller_commission_amount', '')
-    gst_applied = request.form.get('gst_applied') == '1'
+    buyer_gst_applied = request.form.get('buyer_gst_applied') == '1'
+    seller_gst_applied = request.form.get('seller_gst_applied') == '1'
 
     # Retrieve payment installments
     buyer_payment_amounts = request.form.getlist('buyer_payment_amounts')
@@ -316,7 +317,11 @@ def admin_add_transaction():
 
     # Calculate commission
     net_commission, employee_commission = calculate_commission(
-        cs_commission, gst_applied, commission_rate=employee['commission_rate']
+        buyer_amount=buyer_amount,
+        buyer_gst_applied=buyer_gst_applied,
+        seller_amount=seller_amount,
+        seller_gst_applied=seller_gst_applied,
+        commission_rate=employee['commission_rate']
     )
 
     # Date fields
@@ -350,7 +355,9 @@ def admin_add_transaction():
         'seller_commission_amount': seller_amount,
         'seller_commission_received': seller_received,
         'seller_commission_date': seller_date,
-        'gst_applied': int(gst_applied),
+        'buyer_gst_applied': int(buyer_gst_applied),
+        'seller_gst_applied': int(seller_gst_applied),
+        'gst_applied': 0,
         'net_commission': net_commission,
         'employee_commission': employee_commission,
         'payment_status': payment_status,

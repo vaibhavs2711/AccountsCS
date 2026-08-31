@@ -78,15 +78,14 @@ def get_quarter_months(quarter: int) -> list:
 # Commission calculation
 # ---------------------------------------------------------------------------
 
-def calculate_commission(cityscope_commission: float, gst_applied: bool, team_type: str = None, commission_rate: float = None, factor: float = 1.0):
+def calculate_commission(buyer_amount: float, buyer_gst_applied: bool, seller_amount: float, seller_gst_applied: bool, team_type: str = None, commission_rate: float = None, factor: float = 1.0):
     """Calculate net commission and employee share.
 
     Returns (net_commission, employee_commission).
     """
-    if gst_applied:
-        net_commission = cityscope_commission * (1 - GST_RATE)
-    else:
-        net_commission = cityscope_commission
+    buyer_net = buyer_amount * (1 - GST_RATE) if buyer_gst_applied else buyer_amount
+    seller_net = seller_amount * (1 - GST_RATE) if seller_gst_applied else seller_amount
+    net_commission = buyer_net + seller_net
 
     if commission_rate is not None:
         rate = commission_rate
