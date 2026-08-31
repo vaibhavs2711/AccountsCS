@@ -321,6 +321,7 @@ def admin_add_transaction():
                 pass
         if date_str:
             seller_dates.append(date_str)
+    seller_date = max(seller_dates) if seller_dates else None
     custom_comm_rate_str = request.form.get('custom_commission_rate', '').strip()
     custom_emp_comm_str = request.form.get('custom_employee_commission', '').strip()
 
