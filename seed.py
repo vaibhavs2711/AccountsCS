@@ -74,6 +74,8 @@ def run_seed():
                     seller_commission_amount DOUBLE NOT NULL DEFAULT 0,
                     seller_commission_received DOUBLE NOT NULL DEFAULT 0,
                     seller_commission_date DATE NULL,
+                    buyer_gst_applied TINYINT(1) NOT NULL DEFAULT 0,
+                    seller_gst_applied TINYINT(1) NOT NULL DEFAULT 0,
                     gst_applied TINYINT(1) NOT NULL DEFAULT 0,
                     net_commission DOUBLE NOT NULL,
                     employee_commission DOUBLE NOT NULL,
@@ -141,6 +143,16 @@ def run_seed():
             if cur.fetchone() is None:
                 cur.execute("ALTER TABLE transactions ADD COLUMN seller_commission_date DATE NULL")
                 print("✔ Column 'seller_commission_date' migrated.")
+
+            cur.execute("SHOW COLUMNS FROM transactions LIKE 'buyer_gst_applied'")
+            if cur.fetchone() is None:
+                cur.execute("ALTER TABLE transactions ADD COLUMN buyer_gst_applied TINYINT(1) NOT NULL DEFAULT 0")
+                print("✔ Column 'buyer_gst_applied' migrated.")
+
+            cur.execute("SHOW COLUMNS FROM transactions LIKE 'seller_gst_applied'")
+            if cur.fetchone() is None:
+                cur.execute("ALTER TABLE transactions ADD COLUMN seller_gst_applied TINYINT(1) NOT NULL DEFAULT 0")
+                print("✔ Column 'seller_gst_applied' migrated.")
 
             # --- leave_requests ---
             cur.execute("""
