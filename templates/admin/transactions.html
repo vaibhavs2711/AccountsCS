@@ -166,6 +166,10 @@
             </div>
             <div class="form-check" style="flex:1;">
                 <input class="form-check-input" type="checkbox" id="seller_gst_applied" name="seller_gst_applied" value="1" {% if request.form.get('seller_gst_applied') %}checked{% endif %} onchange="updateTotalCommission()">
+                <label class="form-check-label" for="seller_gst_applied" style="font-size:0.85rem;">
+                    Apply GST (6%) on Seller Commission
+                </label>
+            </div>
         </div>
 
         <!-- Manual Admin Override Section -->
