@@ -166,10 +166,26 @@
             </div>
             <div class="form-check" style="flex:1;">
                 <input class="form-check-input" type="checkbox" id="seller_gst_applied" name="seller_gst_applied" value="1" {% if request.form.get('seller_gst_applied') %}checked{% endif %} onchange="updateTotalCommission()">
-                <label class="form-check-label" for="seller_gst_applied" style="font-size:0.85rem;">
-                    Apply GST (6%) on Seller Commission
-                </label>
+        </div>
+
+        <!-- Manual Admin Override Section -->
+        <div style="background: #f8fafc; border: 1px dashed var(--border); border-radius: 8px; padding: 14px; margin-bottom: 16px;">
+            <label class="form-label" style="font-size:0.82rem; font-weight:700; color:var(--primary); margin-bottom: 8px; display:block;">
+                ⚙️ Manual Admin Override (Optional)
+            </label>
+            <div class="d-flex gap-3 form-row-custom">
+                <div style="flex:1;">
+                    <label class="form-label" style="font-size:0.78rem; font-weight:600; color:var(--text-muted);">Custom Comm Rate (%)</label>
+                    <input type="number" class="form-control" name="custom_commission_rate" min="0" max="100" step="0.1" placeholder="e.g. 25 for 25%" style="font-size:0.85rem;">
+                </div>
+                <div style="flex:1;">
+                    <label class="form-label" style="font-size:0.78rem; font-weight:600; color:var(--text-muted);">Fixed Employee Share (₹)</label>
+                    <input type="number" class="form-control" name="custom_employee_commission" min="0" step="1" placeholder="e.g. 50000" style="font-size:0.85rem;">
+                </div>
             </div>
+            <span style="font-size: 0.72rem; color: var(--text-muted); margin-top: 6px; display: block;">
+                Leave blank to automatically calculate using employee's standard rate & target achievement.
+            </span>
         </div>
 
         <div class="alert-info">
@@ -511,6 +527,11 @@ function editTransaction(id, employee_id, property_id, property_name, transactio
     if (s_name) s_name.value = seller_name || '';
     if (b_brk) b_brk.checked = (buyer_is_broker === 1 || buyer_is_broker === true);
     if (s_brk) s_brk.checked = (seller_is_broker === 1 || seller_is_broker === true);
+
+    var c_rate = document.querySelector('input[name="custom_commission_rate"]');
+    var c_comm = document.querySelector('input[name="custom_employee_commission"]');
+    if (c_rate) c_rate.value = '';
+    if (c_comm) c_comm.value = '';
     
     // Lock agreed amounts
     var b_amt = document.querySelector('input[name="buyer_commission_amount"]');

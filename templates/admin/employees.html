@@ -61,13 +61,12 @@
         <div class="d-flex gap-3 mb-3 form-row-custom">
             <div style="flex:1;">
                 <label class="form-label" style="font-size:0.85rem; font-weight:600;">Team Type</label>
-                <select class="form-select" name="team_type" required>
+                <select class="form-select" name="team_type" id="add_team_type" required onchange="autoFillTeamDefaults(this.value)">
                     <option value="" disabled selected>— Select Team —</option>
                     <option value="CORE_TEAM" {% if request.form.get('team_type')=='CORE_TEAM' %}selected{% endif %}>
                         Core Team (10x target, 30% commission)
                     </option>
-                    <option value="NORMAL_TEAM" {% if request.form.get('team_type')=='NORMAL_TEAM' %}selected{% endif
-                        %}>
+                    <option value="NORMAL_TEAM" {% if request.form.get('team_type')=='NORMAL_TEAM' %}selected{% endif %}>
                         Normal Team (7x target, 20% commission)
                     </option>
                     <option value="RENT_TEAM" {% if request.form.get('team_type')=='RENT_TEAM' %}selected{% endif %}>
@@ -75,7 +74,18 @@
                     </option>
                 </select>
             </div>
-            <div style="flex:1;"></div>
+            <div style="flex:1;">
+                <div class="d-flex gap-2">
+                    <div style="flex:1;">
+                        <label class="form-label" style="font-size:0.85rem; font-weight:600;">Target Multiplier</label>
+                        <input type="number" class="form-control" name="target_multiplier" id="add_target_multiplier" min="0" step="0.1" placeholder="e.g. 7" value="{{ request.form.get('target_multiplier', '') }}">
+                    </div>
+                    <div style="flex:1;">
+                        <label class="form-label" style="font-size:0.85rem; font-weight:600;">Comm Rate (%)</label>
+                        <input type="number" class="form-control" name="commission_rate" id="add_commission_rate" min="0" max="100" step="1" placeholder="e.g. 20" value="{{ request.form.get('commission_rate', '') }}">
+                    </div>
+                </div>
+            </div>
         </div>
         <div style="text-align: right; margin-top: 16px;">
             <button type="button" class="btn btn-secondary" onclick="closeModal()" style="margin-right: 8px;">Cancel</button>
@@ -139,6 +149,15 @@
 </div>
 
 <script>
+function autoFillTeamDefaults(team) {
+    var mult = document.getElementById('add_target_multiplier');
+    var rate = document.getElementById('add_commission_rate');
+    if (!mult || !rate) return;
+    if (team === 'CORE_TEAM') { mult.value = '10'; rate.value = '30'; }
+    else if (team === 'NORMAL_TEAM') { mult.value = '7'; rate.value = '20'; }
+    else if (team === 'RENT_TEAM') { mult.value = '5'; rate.value = '20'; }
+}
+
 function openAddModal() {
     document.getElementById('employeeModal').classList.add('open');
 }

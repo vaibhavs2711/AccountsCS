@@ -183,6 +183,8 @@ def admin_add_employee():
     password = request.form.get('password', '').strip()
     salary_str = request.form.get('salary', '0')
     team_type = request.form.get('team_type', '')
+    target_mult_str = request.form.get('target_multiplier', '').strip()
+    comm_rate_str = request.form.get('commission_rate', '').strip()
 
     # Validation
     if not all([name, email, password, team_type]):
@@ -195,8 +197,10 @@ def admin_add_employee():
 
     try:
         salary = float(salary_str)
+        target_multiplier = float(target_mult_str) if target_mult_str else TEAM_CONFIG[team_type]['multiplier']
+        commission_rate = (float(comm_rate_str) / 100.0) if comm_rate_str else TEAM_CONFIG[team_type]['commission_rate']
     except ValueError:
-        session['emp_error'] = 'Invalid salary value.'
+        session['emp_error'] = 'Invalid salary or multiplier value.'
         return redirect(url_for('admin_employees'))
 
     # Check unique email
@@ -206,7 +210,7 @@ def admin_add_employee():
         return redirect(url_for('admin_employees'))
 
     hashed = hash_password(password)
-    models.create_user(name, email, hashed, 'EMPLOYEE', team_type, salary)
+    models.create_user(name, email, hashed, 'EMPLOYEE', team_type, salary, target_multiplier, commission_rate)
     session['emp_success'] = f'Employee "{name}" added successfully!'
     return redirect(url_for('admin_employees'))
 
@@ -317,16 +321,34 @@ def admin_add_transaction():
                 pass
         if date_str:
             seller_dates.append(date_str)
-    seller_date = max(seller_dates) if seller_dates else None
+    custom_comm_rate_str = request.form.get('custom_commission_rate', '').strip()
+    custom_emp_comm_str = request.form.get('custom_employee_commission', '').strip()
+
+    # Determine effective commission rate for this deal
+    effective_comm_rate = employee.get('commission_rate', 0.20)
+    if custom_comm_rate_str:
+        try:
+            effective_comm_rate = float(custom_comm_rate_str) / 100.0
+        except ValueError:
+            pass
 
     # Calculate commission
-    net_commission, employee_commission = calculate_commission(
+    net_commission, calculated_emp_commission = calculate_commission(
         buyer_amount=buyer_amount,
         buyer_gst_applied=buyer_gst_applied,
         seller_amount=seller_amount,
         seller_gst_applied=seller_gst_applied,
-        commission_rate=employee.get('commission_rate', 0.20)
+        commission_rate=effective_comm_rate
     )
+
+    # Use manual fixed share if provided, otherwise calculated share
+    if custom_emp_comm_str:
+        try:
+            employee_commission = float(custom_emp_comm_str)
+        except ValueError:
+            employee_commission = calculated_emp_commission
+    else:
+        employee_commission = calculated_emp_commission
 
     # Date fields
     try:
