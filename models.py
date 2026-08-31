@@ -535,56 +535,109 @@ def get_employee_transactions_for_quarter(employee_id: int, quarter: int, fy_yea
         db.close()
 
 
+def get_employee_fy_spillover_summary(employee_id: int, fy_year: int):
+    """Calculate quarterly business, targets, spillover adjustments, and effective factors for an FY.
+
+    Returns a list of dicts for Q1, Q2, Q3, Q4 with raw & adjusted performance.
+    """
+    employee = get_user_by_id(employee_id)
+    if not employee or employee['role'] != 'EMPLOYEE':
+        return []
+
+    salary = employee['salary']
+    multiplier = employee['target_multiplier']
+    from commission import get_quarterly_target
+    q_target = get_quarterly_target(salary, target_multiplier=multiplier)
+
+    # 1. Fetch raw business for Q1, Q2, Q3, Q4 of this FY
+    quarters_data = []
+    for q in range(1, 5):
+        txns = get_employee_transactions_for_quarter(employee_id, q, fy_year)
+        raw_b = sum(t['cityscope_commission'] for t in txns)
+        raw_pct = (raw_b / q_target * 100.0) if q_target > 0 else 100.0
+        deficit = max(0.0, q_target - raw_b) if q_target > 0 else 0.0
+        surplus = max(0.0, raw_b - q_target) if q_target > 0 else 0.0
+        
+        quarters_data.append({
+            'q': q,
+            'txns': txns,
+            'target': q_target,
+            'raw_business': raw_b,
+            'raw_pct': round(raw_pct, 1),
+            'rem_deficit': deficit,
+            'rem_surplus': surplus,
+            'spillover_received': 0.0,
+            'spillover_given': 0.0,
+        })
+
+    # 2. Spillover Algorithm: Surplus from later quarters fills deficit of earlier quarters (closest preceding deficit first)
+    for i in range(4):
+        if quarters_data[i]['rem_surplus'] > 0:
+            avail_surplus = quarters_data[i]['rem_surplus']
+            for j in range(i - 1, -1, -1):
+                if quarters_data[j]['rem_deficit'] > 0 and avail_surplus > 0:
+                    transfer = min(avail_surplus, quarters_data[j]['rem_deficit'])
+                    quarters_data[j]['spillover_received'] += transfer
+                    quarters_data[j]['rem_deficit'] -= transfer
+                    quarters_data[i]['spillover_given'] += transfer
+                    avail_surplus -= transfer
+            quarters_data[i]['rem_surplus'] = avail_surplus
+
+    # 3. Calculate final adjusted totals & effective factor
+    summary = []
+    for qd in quarters_data:
+        adj_b = qd['raw_business'] + qd['spillover_received'] - qd['spillover_given']
+        adj_pct = (adj_b / qd['target'] * 100.0) if qd['target'] > 0 else 100.0
+        
+        if adj_pct >= 95.0:
+            factor = 1.0
+        else:
+            factor = max(0.05, round(adj_pct / 100.0, 4))
+            
+        summary.append({
+            'q': qd['q'],
+            'target': qd['target'],
+            'raw_business': qd['raw_business'],
+            'raw_pct': qd['raw_pct'],
+            'spillover_received': qd['spillover_received'],
+            'spillover_given': qd['spillover_given'],
+            'adjusted_business': adj_b,
+            'adjusted_pct': round(adj_pct, 1),
+            'factor': factor,
+            'txns': qd['txns']
+        })
+
+    return summary
+
+
 def recalculate_employee_quarterly_commissions(employee_id: int, quarter: int, fy_year: int):
-    """Recalculate employee commission for a specific quarter/year based on target progress."""
+    """Recalculate employee commission for all 4 quarters of an FY with spillover adjustment."""
     employee = get_user_by_id(employee_id)
     if not employee or employee['role'] != 'EMPLOYEE':
         return
 
-    salary = employee['salary']
-    multiplier = employee['target_multiplier']
     commission_rate = employee['commission_rate']
+    summary = get_employee_fy_spillover_summary(employee_id, fy_year)
 
-    # Quarterly target
-    from commission import get_quarterly_target, calculate_commission
-    q_target = get_quarterly_target(salary, target_multiplier=multiplier)
-
-    # Get all transactions for this quarter
-    txns = get_employee_transactions_for_quarter(employee_id, quarter, fy_year)
-
-    # Calculate total business done
-    total_business = sum(t['cityscope_commission'] for t in txns)
-
-    # Achievement percentage
-    if q_target <= 0:
-        progress = 100.0
-    else:
-        progress = (total_business / q_target) * 100.0
-
-    # Adjustment factor
-    if progress >= 95.0:
-        factor = 1.0
-    else:
-        factor = max(0.05, round(progress / 100.0, 4))
-
-    # Update each transaction in the database
+    from commission import calculate_commission
     db = get_db()
     try:
         with db.cursor() as cur:
-            for t in txns:
-                # Recalculate employee commission
-                _, new_emp_commission = calculate_commission(
-                    buyer_amount=t.get('buyer_commission_amount', 0),
-                    buyer_gst_applied=bool(t.get('buyer_gst_applied', False)),
-                    seller_amount=t.get('seller_commission_amount', 0),
-                    seller_gst_applied=bool(t.get('seller_gst_applied', False)),
-                    commission_rate=commission_rate,
-                    factor=factor
-                )
-                cur.execute(
-                    "UPDATE transactions SET employee_commission = %s WHERE id = %s",
-                    (new_emp_commission, t['id'])
-                )
+            for qd in summary:
+                factor = qd['factor']
+                for t in qd['txns']:
+                    _, new_emp_commission = calculate_commission(
+                        buyer_amount=t.get('buyer_commission_amount', 0),
+                        buyer_gst_applied=bool(t.get('buyer_gst_applied', False)),
+                        seller_amount=t.get('seller_commission_amount', 0),
+                        seller_gst_applied=bool(t.get('seller_gst_applied', False)),
+                        commission_rate=commission_rate,
+                        factor=factor
+                    )
+                    cur.execute(
+                        "UPDATE transactions SET employee_commission = %s WHERE id = %s",
+                        (new_emp_commission, t['id'])
+                    )
     finally:
         db.close()
 

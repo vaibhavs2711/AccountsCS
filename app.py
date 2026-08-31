@@ -518,10 +518,11 @@ def admin_employee_detail(id):
     transactions = models.get_transactions_by_employee(id)
     leaves = models.get_leaves_by_employee(id)
 
-    # Payout & advance data
+    # Payout, advance & FY spillover data
     payout_summary = models.get_employee_payout_summary(id)
     advances = models.get_advances_by_employee(id)
     active_advances_total = models.get_active_advances_total(id)
+    fy_spillover_summary = models.get_employee_fy_spillover_summary(id, fy_year)
     today = datetime.now().strftime('%Y-%m-%d')
 
     success = session.pop('emp_success', None)
@@ -554,6 +555,7 @@ def admin_employee_detail(id):
         payout_summary=payout_summary,
         advances=advances,
         active_advances_total=active_advances_total,
+        fy_spillover_summary=fy_spillover_summary,
         today=today,
     )
 

@@ -159,7 +159,74 @@
 
     </div>
 
-    <!-- 3. Advances Section -->
+    <!-- 2b. FY Quarterly Performance & Year-End Spillover Calculation Breakdown -->
+    <div class="card" style="grid-column: 1 / -1;">
+        <div class="card-title" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+            <span>FY {{ fy_year }}-{{ (fy_year+1)|string|truncate(2, True, '') }} Quarterly Performance & Year-End Spillover Calculation</span>
+            <span style="font-size: 0.75rem; background: #e0f2fe; color: #0369a1; padding: 4px 10px; border-radius: 12px; font-weight: 600;">Year-End Spillover System</span>
+        </div>
+        
+        <div class="table-responsive">
+            <table class="table mb-0">
+                <thead>
+                    <tr>
+                        <th>Quarter</th>
+                        <th>Target (₹)</th>
+                        <th>Raw Business (₹)</th>
+                        <th>Raw %</th>
+                        <th>Spillover Adjustment (₹)</th>
+                        <th>Adjusted Business (₹)</th>
+                        <th>Effective Achieved %</th>
+                        <th>Commission Factor</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for qd in fy_spillover_summary %}
+                    <tr>
+                        <td><strong>Q{{ qd.q }}</strong></td>
+                        <td>{{ format_inr(qd.target) }}</td>
+                        <td>{{ format_inr(qd.raw_business) }}</td>
+                        <td>
+                            <span style="font-weight: 600; color: {% if qd.raw_pct >= 95 %}var(--success){% elif qd.raw_pct >= 50 %}var(--warning){% else %}var(--danger){% endif %};">
+                                {{ qd.raw_pct }}%
+                            </span>
+                        </td>
+                        <td>
+                            {% if qd.spillover_received > 0 %}
+                                <span style="background: #dcfce7; color: #166534; padding: 2px 8px; border-radius: 10px; font-weight: 600; font-size: 0.75rem;">
+                                    +{{ format_inr(qd.spillover_received) }} (Filled)
+                                </span>
+                            {% elif qd.spillover_given > 0 %}
+                                <span style="background: #fef3c7; color: #92400e; padding: 2px 8px; border-radius: 10px; font-weight: 600; font-size: 0.75rem;">
+                                    −{{ format_inr(qd.spillover_given) }} (Surplus Shared)
+                                </span>
+                            {% else %}
+                                <span style="color: var(--text-muted);">—</span>
+                            {% endif %}
+                        </td>
+                        <td><strong>{{ format_inr(qd.adjusted_business) }}</strong></td>
+                        <td>
+                            <span class="status-badge {% if qd.adjusted_pct >= 95 %}done{% else %}pending{% endif %}">
+                                {{ qd.adjusted_pct }}%
+                            </span>
+                        </td>
+                        <td>
+                            {% if qd.factor >= 1.0 %}
+                                <span style="color: var(--success); font-weight: 700;">100% Full Rate</span>
+                            {% else %}
+                                <span style="color: var(--danger); font-weight: 600;">{{ (qd.factor * 100)|round(1) }}% Scaled</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div style="margin-top: 14px; padding: 12px 16px; background: #f8fafc; border: 1px dashed var(--border); border-radius: 8px; font-size: 0.8rem; color: var(--text-muted); line-height: 1.5;">
+            <strong>💡 How Year-End Spillover Works:</strong> Any surplus business above 100% achieved in later quarters (e.g. Q4 or Q3) is automatically transferred back to fill targets in earlier deficit quarters within the same Financial Year. This unlocks higher commission rates for {{ employee.name }}. <em>Note: Surplus resets on 31st March at FY end and does NOT carry forward to the next financial year.</em>
+        </div>
+    </div>
     <div class="card" style="grid-column: 1 / -1;">
         <div class="card-title" style="display: flex; justify-content: space-between; align-items: center;">
             <span>Advances ({{ advances|length }})</span>
