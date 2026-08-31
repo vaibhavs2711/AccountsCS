@@ -240,7 +240,7 @@ def admin_transactions():
     )
 
 
-@app.route('/admin/transactions/add', methods=['POST'])
+@app.route('/admin/transactions/save', methods=['POST'])
 @admin_required
 def admin_add_transaction():
     """Create or update a transaction with calculated commission."""
