@@ -740,7 +740,7 @@ def employee_leaves():
     leave_requests = models.get_leaves_by_employee(employee['id'], limit=30)
     leave_success = session.pop('leave_success_emp', None)
     leave_error = session.pop('leave_error_emp', None)
-    tomorrow = (now + timedelta(days=1)).strftime('%Y-%m-%d')
+    min_leave_date = (now.date() + timedelta(days=3)).strftime('%Y-%m-%d')
     today = now.strftime('%Y-%m-%d')
 
     return render_template('employee/leaves.html',
@@ -748,7 +748,7 @@ def employee_leaves():
         leave_requests=leave_requests,
         leave_success=leave_success,
         leave_error=leave_error,
-        tomorrow=tomorrow,
+        tomorrow=min_leave_date,
         today=today,
     )
 
@@ -756,7 +756,7 @@ def employee_leaves():
 @app.route('/employee/leave/apply', methods=['POST'])
 @login_required
 def employee_apply_leave():
-    """Apply for leave - enforces 72-hour rule."""
+    """Apply for leave - enforces 3-day deadline rule (by 11:59 PM, 3 days prior)."""
     employee = get_current_user()
     if employee['role'] == 'ADMIN':
         return redirect(url_for('admin_dashboard'))
@@ -769,16 +769,22 @@ def employee_apply_leave():
         return redirect(url_for('employee_leaves'))
 
     try:
-        leave_date = datetime.strptime(date_str, '%Y-%m-%d')
+        leave_date_obj = datetime.strptime(date_str, '%Y-%m-%d').date()
     except ValueError:
         session['leave_error_emp'] = 'Invalid date format.'
         return redirect(url_for('employee_leaves'))
 
     now = datetime.now()
-    hours_diff = (leave_date - now).total_seconds() / 3600
 
-    if hours_diff < 72:
-        session['leave_error_emp'] = 'Leave requests must be submitted at least 72 hours in advance.'
+    # Deadline is 3 days prior to leave date at 11:59:59 PM
+    # e.g., Leave on Thursday (Sep 4) -> Deadline is Monday (Sep 1) 11:59:59 PM
+    deadline_date = leave_date_obj - timedelta(days=3)
+    deadline_dt = datetime.combine(deadline_date, time(23, 59, 59))
+
+    if now > deadline_dt:
+        deadline_formatted = deadline_date.strftime('%A, %d %b %Y')
+        leave_formatted = leave_date_obj.strftime('%A, %d %b %Y')
+        session['leave_error_emp'] = f'Leave for {leave_formatted} had to be applied by {deadline_formatted} 11:59 PM.'
         models.create_leave_request(
             employee_id=employee['id'],
             date_of_leave=date_str,

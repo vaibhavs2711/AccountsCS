@@ -31,6 +31,11 @@
         <div class="alert-error">{{ leave_error }}</div>
         {% endif %}
 
+        <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 12px 16px; margin-bottom: 16px; font-size: 0.82rem; color: #1e40af; line-height: 1.5;">
+            <strong>ℹ️ Leave Rule:</strong> Must apply at least 3 calendar days prior (by <strong>11:59 PM</strong>).
+            <br><span style="font-size: 0.78rem; opacity: 0.9;">Example: To take leave on Thursday, you must apply by Monday 11:59 PM.</span>
+        </div>
+
         <form method="POST" action="{{ url_for('employee_apply_leave') }}">
             <div class="mb-3">
                 <label class="form-label" style="font-size:0.85rem; font-weight:600;">Date of Leave</label>
