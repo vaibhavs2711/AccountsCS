@@ -488,20 +488,67 @@ def admin_cancel_leave(id):
 
 
 
+def parse_period_filters(request_args):
+    """Parse month, quarter, fy_year from request arguments with smart synchronization."""
+    now = datetime.now()
+    current_fy = get_fy_year(now.month, now.year)
+
+    sel_fy = request_args.get('fy_year', type=int)
+    sel_q = request_args.get('quarter', type=int)
+    sel_m = request_args.get('month', type=int)
+
+    # 1. Determine FY Year
+    fy_year = sel_fy if sel_fy is not None else current_fy
+
+    # 2. Determine Month & Quarter
+    if sel_m and 1 <= sel_m <= 12:
+        month = sel_m
+        quarter = get_quarter(month)
+    elif sel_q and 1 <= sel_q <= 4:
+        quarter = sel_q
+        month = get_quarter_months(quarter)[0]
+    else:
+        if fy_year == current_fy:
+            month = now.month
+            quarter = get_quarter(month)
+        else:
+            month = 4
+            quarter = 1
+
+    year = fy_year if month >= 4 else fy_year + 1
+
+    available_fys = []
+    for fy in range(current_fy - 3, current_fy + 2):
+        available_fys.append({
+            'year': fy,
+            'label': f"FY {fy}-{str(fy + 1)[-2:]}"
+        })
+
+    return {
+        'month': month,
+        'year': year,
+        'quarter': quarter,
+        'fy_year': fy_year,
+        'available_fys': available_fys,
+        'selected_fy': sel_fy,
+        'selected_quarter': sel_q,
+        'selected_month': sel_m,
+    }
+
+
 @app.route('/admin/employee/<int:id>')
 @admin_required
 def admin_employee_detail(id):
-    """Detailed view for a specific employee."""
+    """Detailed view for a specific employee with historical month/quarter/FY filter."""
     user = get_current_user()
     employees_raw = models.get_all_employees()
     employee = next((e for e in employees_raw if e['id'] == id), None)
     if not employee:
         return "Employee not found", 404
 
-    now = datetime.now()
-    month, year = now.month, now.year
-    quarter = get_quarter(month)
-    fy_year = get_fy_year(month, year)
+    period = parse_period_filters(request.args)
+    month, year = period['month'], period['year']
+    quarter, fy_year = period['quarter'], period['fy_year']
 
     tc = TEAM_CONFIG.get(employee['team_type'], {})
     team_label = tc.get('label', employee['team_type'] or '-')
@@ -572,6 +619,9 @@ def admin_employee_detail(id):
         year=year,
         quarter=quarter,
         fy_year=fy_year,
+        fy_label=get_fy_label(month, year),
+        period=period,
+        MONTH_NAMES=MONTH_NAMES,
         success=success,
         error=error,
         payout_summary=payout_summary,
@@ -693,10 +743,9 @@ def employee_dashboard():
     if employee['role'] == 'ADMIN':
         return redirect(url_for('admin_dashboard'))
 
-    now = datetime.now()
-    month, year = now.month, now.year
-    quarter = get_quarter(month)
-    fy_year = get_fy_year(month, year)
+    period = parse_period_filters(request.args)
+    month, year = period['month'], period['year']
+    quarter, fy_year = period['quarter'], period['fy_year']
 
     multiplier = employee['target_multiplier']
 
@@ -749,6 +798,8 @@ def employee_dashboard():
         payout_summary=payout_summary,
         advances=advances,
         active_advances_total=active_advances_total,
+        period=period,
+        fy_year=fy_year,
     )
 
 
