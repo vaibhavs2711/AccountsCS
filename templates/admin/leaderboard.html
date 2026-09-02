@@ -16,6 +16,60 @@
     </div>
 </div>
 
+<!-- Historical Time Period Selector Bar -->
+<div class="card no-pdf" style="margin-bottom: 20px; padding: 14px 20px; background: #f8fafc; border: 1px solid var(--border);">
+    <form method="GET" style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin: 0;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-weight: 700; font-size: 0.88rem; color: var(--primary); display: flex; align-items: center; gap: 6px;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+                Period:
+            </span>
+            <span style="font-size: 0.82rem; color: var(--text); font-weight: 600;">
+                Viewing: <strong style="color: var(--primary);">{{ current_month_name }} {{ current_year }}</strong> <span style="color: var(--text-muted);">(Q{{ current_quarter }} | {{ fy_label }})</span>
+            </span>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+            <!-- Financial Year -->
+            <select name="fy_year" class="form-select" onchange="this.form.submit()" style="font-size: 0.82rem; font-weight: 600; padding: 6px 14px; height: 38px; min-width: 130px; border-radius: 8px; background-color: #fff; border: 1px solid #cbd5e1; cursor: pointer;">
+                {% for fy in period.available_fys %}
+                <option value="{{ fy.year }}" {% if period.fy_year == fy.year %}selected{% endif %}>
+                    {{ fy.label }}
+                </option>
+                {% endfor %}
+            </select>
+
+            <!-- Quarter -->
+            <select name="quarter" class="form-select" onchange="this.form.submit()" style="font-size: 0.82rem; font-weight: 600; padding: 6px 14px; height: 38px; min-width: 135px; border-radius: 8px; background-color: #fff; border: 1px solid #cbd5e1; cursor: pointer;">
+                <option value="1" {% if period.quarter == 1 %}selected{% endif %}>Q1 (Apr-Jun)</option>
+                <option value="2" {% if period.quarter == 2 %}selected{% endif %}>Q2 (Jul-Sep)</option>
+                <option value="3" {% if period.quarter == 3 %}selected{% endif %}>Q3 (Oct-Dec)</option>
+                <option value="4" {% if period.quarter == 4 %}selected{% endif %}>Q4 (Jan-Mar)</option>
+            </select>
+
+            <!-- Month -->
+            <select name="month" class="form-select" onchange="this.form.submit()" style="font-size: 0.82rem; font-weight: 600; padding: 6px 14px; height: 38px; min-width: 125px; border-radius: 8px; background-color: #fff; border: 1px solid #cbd5e1; cursor: pointer;">
+                <option value="4" {% if period.month == 4 %}selected{% endif %}>April</option>
+                <option value="5" {% if period.month == 5 %}selected{% endif %}>May</option>
+                <option value="6" {% if period.month == 6 %}selected{% endif %}>June</option>
+                <option value="7" {% if period.month == 7 %}selected{% endif %}>July</option>
+                <option value="8" {% if period.month == 8 %}selected{% endif %}>August</option>
+                <option value="9" {% if period.month == 9 %}selected{% endif %}>September</option>
+                <option value="10" {% if period.month == 10 %}selected{% endif %}>October</option>
+                <option value="11" {% if period.month == 11 %}selected{% endif %}>November</option>
+                <option value="12" {% if period.month == 12 %}selected{% endif %}>December</option>
+                <option value="1" {% if period.month == 1 %}selected{% endif %}>January</option>
+                <option value="2" {% if period.month == 2 %}selected{% endif %}>February</option>
+                <option value="3" {% if period.month == 3 %}selected{% endif %}>March</option>
+            </select>
+            
+            {% if request.args.get('month') or request.args.get('quarter') or request.args.get('fy_year') %}
+            <a href="?" style="font-size: 0.78rem; font-weight: 600; color: var(--accent); text-decoration: none; padding: 6px 12px; background: #eff6ff; border-radius: 8px; border: 1px solid #bfdbfe;">↺ Reset to Current</a>
+            {% endif %}
+        </div>
+    </form>
+</div>
+
 <div class="card">
     <!-- Tab Navigation -->
     <ul class="nav nav-pills mb-4 justify-content-center no-pdf" id="pills-tab" role="tablist" style="background: #f1f5f9; padding: 4px; border-radius: var(--radius); max-width: 400px; margin: 0 auto 20px;">

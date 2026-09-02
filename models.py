@@ -255,7 +255,10 @@ def get_pending_commission_total():
 
 
 def mark_transaction_paid(transaction_id: int):
-    """Set payment_status to DONE and mark received amounts as fully paid."""
+    """Set payment_status to DONE, mark received amounts as fully paid, and recalculate commission."""
+    txn = get_transaction_by_id(transaction_id)
+    if not txn:
+        return
     db = get_db()
     try:
         with db.cursor() as cur:
@@ -271,6 +274,10 @@ def mark_transaction_paid(transaction_id: int):
             )
     finally:
         db.close()
+
+    from commission import get_fy_year
+    fy_year = get_fy_year(txn['month'], txn['year'])
+    recalculate_employee_quarterly_commissions(txn['employee_id'], txn['quarter'], fy_year)
 
 
 def get_employee_business_for_month(employee_id: int, month: int, year: int) -> float:
@@ -626,17 +633,17 @@ def recalculate_employee_quarterly_commissions(employee_id: int, quarter: int, f
             for qd in summary:
                 factor = qd['factor']
                 for t in qd['txns']:
-                    _, new_emp_commission = calculate_commission(
-                        buyer_amount=t.get('buyer_commission_amount', 0),
+                    new_net_comm, new_emp_commission = calculate_commission(
+                        buyer_amount=t.get('buyer_commission_received', 0),
                         buyer_gst_applied=bool(t.get('buyer_gst_applied', False)),
-                        seller_amount=t.get('seller_commission_amount', 0),
+                        seller_amount=t.get('seller_commission_received', 0),
                         seller_gst_applied=bool(t.get('seller_gst_applied', False)),
                         commission_rate=commission_rate,
                         factor=factor
                     )
                     cur.execute(
-                        "UPDATE transactions SET employee_commission = %s WHERE id = %s",
-                        (new_emp_commission, t['id'])
+                        "UPDATE transactions SET net_commission = %s, employee_commission = %s WHERE id = %s",
+                        (new_net_comm, new_emp_commission, t['id'])
                     )
     finally:
         db.close()

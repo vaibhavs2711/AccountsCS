@@ -333,11 +333,11 @@ def admin_add_transaction():
         except ValueError:
             pass
 
-    # Calculate commission
+    # Calculate commission based on received amounts
     net_commission, calculated_emp_commission = calculate_commission(
-        buyer_amount=buyer_amount,
+        buyer_amount=buyer_received,
         buyer_gst_applied=buyer_gst_applied,
-        seller_amount=seller_amount,
+        seller_amount=seller_received,
         seller_gst_applied=seller_gst_applied,
         commission_rate=effective_comm_rate
     )
@@ -915,15 +915,14 @@ def employee_cancel_leave(id):
 @app.route('/employee/leaderboard')
 @login_required
 def employee_leaderboard():
-    """Employee leaderboard page."""
+    """Employee leaderboard page with historical month/quarter/FY filter."""
     employee = get_current_user()
     if employee['role'] == 'ADMIN':
         return redirect(url_for('admin_dashboard'))
 
-    now = datetime.now()
-    month, year = now.month, now.year
-    quarter = get_quarter(month)
-    fy_year = get_fy_year(month, year)
+    period = parse_period_filters(request.args)
+    month, year = period['month'], period['year']
+    quarter, fy_year = period['quarter'], period['fy_year']
 
     all_employees = models.get_all_employees()
     leaderboard_monthly = []
@@ -958,6 +957,8 @@ def employee_leaderboard():
 
     return render_template('employee/leaderboard.html',
         employee=employee,
+        period=period,
+        fy_label=get_fy_label(month, year),
         current_month_name=MONTH_NAMES[month],
         current_year=year,
         current_quarter=quarter,
@@ -969,12 +970,12 @@ def employee_leaderboard():
 @app.route('/admin/leaderboard')
 @admin_required
 def admin_leaderboard():
-    """Admin dedicated leaderboard page."""
+    """Admin dedicated leaderboard page with historical month/quarter/FY filter."""
     user = get_current_user()
-    now = datetime.now()
-    month, year = now.month, now.year
-    quarter = get_quarter(month)
-    fy_year = get_fy_year(month, year)
+
+    period = parse_period_filters(request.args)
+    month, year = period['month'], period['year']
+    quarter, fy_year = period['quarter'], period['fy_year']
 
     employees = models.get_all_employees()
     leaderboard_monthly = []
@@ -1016,6 +1017,8 @@ def admin_leaderboard():
 
     return render_template('admin/leaderboard.html',
         current_user=user,
+        period=period,
+        fy_label=get_fy_label(month, year),
         current_month_name=MONTH_NAMES[month],
         current_year=year,
         current_quarter=quarter,
