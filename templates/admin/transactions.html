@@ -117,19 +117,19 @@
         </div>
         <div class="d-flex gap-3 mb-3 form-row-custom">
             <div style="flex:1;">
-                <label class="form-label" style="font-size:0.85rem; font-weight:600;">Total Company Commission ₹</label>
+                <label class="form-label" style="font-size:0.85rem; font-weight:600;">Total Company Brokerage ₹</label>
                 <input type="number" class="form-control" name="cityscope_commission" required min="0" step="1"
                     value="{{ request.form.get('cityscope_commission', '') }}" readonly style="background-color: #f1f5f9; cursor: not-allowed;">
             </div>
             <div style="flex:1;">
                 <div class="d-flex gap-3 form-row-custom">
                     <div style="flex:1;">
-                        <label class="form-label" style="font-size:0.85rem; font-weight:600;">Buyer Comm (Total) ₹</label>
+                        <label class="form-label" style="font-size:0.85rem; font-weight:600;">Buyer Brokerage (Total) ₹</label>
                         <input type="number" class="form-control" name="buyer_commission_amount" min="0" step="1"
                             value="{{ request.form.get('buyer_commission_amount', '') }}" oninput="updateTotalCommission()">
                     </div>
                     <div style="flex:1;">
-                        <label class="form-label" style="font-size:0.85rem; font-weight:600;">Seller Comm (Total) ₹</label>
+                        <label class="form-label" style="font-size:0.85rem; font-weight:600;">Seller Brokerage (Total) ₹</label>
                         <input type="number" class="form-control" name="seller_commission_amount" min="0" step="1"
                             value="{{ request.form.get('seller_commission_amount', '') }}" oninput="updateTotalCommission()">
                     </div>
@@ -139,7 +139,7 @@
         <!-- Buyer Payment Portions (Installments) -->
         <div class="mb-3" style="border: 1px solid var(--border); border-radius: 8px; padding: 16px; background-color: #f8fafc;">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-                <label class="form-label" style="font-size:0.85rem; font-weight:700; color:var(--text); margin:0;">Buyer Commission Installment Portions</label>
+                <label class="form-label" style="font-size:0.85rem; font-weight:700; color:var(--text); margin:0;">Buyer Brokerage Installment Portions</label>
                 <button type="button" class="btn btn-secondary" onclick="addPaymentRow('BUYER')" style="padding: 4px 8px; font-size: 0.75rem; border-radius: 4px; background-color: #e2e8f0; color: #475569; border: none; font-weight: 600; cursor: pointer;">+ Add Portion</button>
             </div>
             <div id="buyer-payments-container">
@@ -150,7 +150,7 @@
         <!-- Seller Payment Portions (Installments) -->
         <div class="mb-3" style="border: 1px solid var(--border); border-radius: 8px; padding: 16px; background-color: #f8fafc;">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-                <label class="form-label" style="font-size:0.85rem; font-weight:700; color:var(--text); margin:0;">Seller Commission Installment Portions</label>
+                <label class="form-label" style="font-size:0.85rem; font-weight:700; color:var(--text); margin:0;">Seller Brokerage Installment Portions</label>
                 <button type="button" class="btn btn-secondary" onclick="addPaymentRow('SELLER')" style="padding: 4px 8px; font-size: 0.75rem; border-radius: 4px; background-color: #e2e8f0; color: #475569; border: none; font-weight: 600; cursor: pointer;">+ Add Portion</button>
             </div>
             <div id="seller-payments-container">
@@ -161,13 +161,13 @@
             <div class="form-check" style="flex:1;">
                 <input class="form-check-input" type="checkbox" id="buyer_gst_applied" name="buyer_gst_applied" value="1" {% if request.form.get('buyer_gst_applied') %}checked{% endif %} onchange="updateTotalCommission()">
                 <label class="form-check-label" for="buyer_gst_applied" style="font-size:0.85rem;">
-                    Apply GST (6%) on Buyer Commission
+                    Apply GST (6%) on Buyer Brokerage
                 </label>
             </div>
             <div class="form-check" style="flex:1;">
                 <input class="form-check-input" type="checkbox" id="seller_gst_applied" name="seller_gst_applied" value="1" {% if request.form.get('seller_gst_applied') %}checked{% endif %} onchange="updateTotalCommission()">
                 <label class="form-check-label" for="seller_gst_applied" style="font-size:0.85rem;">
-                    Apply GST (6%) on Seller Commission
+                    Apply GST (6%) on Seller Brokerage
                 </label>
             </div>
         </div>
@@ -183,7 +183,7 @@
                     <input type="number" class="form-control" name="custom_commission_rate" min="0" max="100" step="0.1" placeholder="e.g. 25 for 25%" style="font-size:0.85rem;">
                 </div>
                 <div style="flex:1;">
-                    <label class="form-label" style="font-size:0.78rem; font-weight:600; color:var(--text-muted);">Fixed Employee Share (₹)</label>
+                    <label class="form-label" style="font-size:0.78rem; font-weight:600; color:var(--text-muted);">Fixed Commission (₹)</label>
                     <input type="number" class="form-control" name="custom_employee_commission" min="0" step="1" placeholder="e.g. 50000" style="font-size:0.85rem;">
                 </div>
             </div>
@@ -193,9 +193,9 @@
         </div>
 
         <div class="alert-info">
-            <strong>How commission is calculated:</strong><br>
-            Net Received Commission = (Buyer Received - 6% if GST) + (Seller Received - 6% if GST)<br>
-            Employee Share = Net Received Commission × team rate (Core: 30%, Normal/Rent: 20%)
+            <strong>How calculation works:</strong><br>
+            Net Received Brokerage = (Buyer Received - 6% if GST) + (Seller Received - 6% if GST)<br>
+            Commission = Net Received Brokerage × team rate (Core: 30%, Normal/Rent: 20%)
         </div>
 
         <div style="text-align: right; margin-top: 16px;">
@@ -238,8 +238,8 @@
                     <th style="white-space: nowrap;">CSID</th>
                     <th style="white-space: nowrap;">Employee</th>
                     <th>GST</th>
-                    <th style="white-space: nowrap;">Net Commission</th>
-                    <th style="white-space: nowrap;">Emp. Share</th>
+                    <th style="white-space: nowrap;">Brokerage</th>
+                    <th style="white-space: nowrap;">Commission</th>
                     <th style="white-space: nowrap;">Buyer ₹</th>
                     <th style="white-space: nowrap;">Seller ₹</th>
                     <th>Status</th>
@@ -275,8 +275,8 @@
                         No
                         {% endif %}
                     </td>
-                    <td data-label="Net Commission" style="white-space: nowrap;">{{ format_inr(t.net_commission) }}</td>
-                    <td data-label="Emp. Share" style="white-space: nowrap;">
+                    <td data-label="Brokerage" style="white-space: nowrap;">{{ format_inr(t.net_commission) }}</td>
+                    <td data-label="Commission" style="white-space: nowrap;">
                         <strong class="text-primary-custom">{{ format_inr(t.employee_commission) }}</strong>
                     </td>
                     <td data-label="Buyer" style="white-space: nowrap; line-height: 1.4; font-size: 0.8rem;">
