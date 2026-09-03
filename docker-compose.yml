@@ -6,6 +6,7 @@ services:
     ports:
       - "5005:5000"
     environment:
+      - TZ=Asia/Kolkata
       - MYSQL_HOST=db
       - MYSQL_PORT=3306
       - MYSQL_USER=root
@@ -20,6 +21,7 @@ services:
     container_name: cityscope-db
     restart: always
     environment:
+      - TZ=Asia/Kolkata
       - MYSQL_ROOT_PASSWORD=cityscope-secure-db-pass
       - MYSQL_DATABASE=cityscope_accounts
     volumes:
