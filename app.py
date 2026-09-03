@@ -774,6 +774,10 @@ def employee_dashboard():
 
     # Transactions
     transactions = models.get_transactions_by_employee(employee['id'])
+    
+    total_buyer_pending = sum((t.get('buyer_commission_amount') or 0) - (t.get('buyer_commission_received') or 0) for t in transactions)
+    total_seller_pending = sum((t.get('seller_commission_amount') or 0) - (t.get('seller_commission_received') or 0) for t in transactions)
+    total_brokerage_pending = total_buyer_pending + total_seller_pending
 
     return render_template('employee/dashboard.html',
         employee=employee,
@@ -795,6 +799,9 @@ def employee_dashboard():
         quarterly_color=get_progress_color(q_pct),
         quarterly_remaining=format_inr(q_remaining),
         transactions=transactions,
+        total_brokerage_pending=format_inr(total_brokerage_pending),
+        total_buyer_pending=format_inr(total_buyer_pending),
+        total_seller_pending=format_inr(total_seller_pending),
         month_names=MONTH_NAMES,
         payout_summary=payout_summary,
         advances=advances,
