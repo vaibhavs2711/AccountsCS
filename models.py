@@ -495,6 +495,16 @@ def update_user(user_id: int, data: dict):
         db.close()
 
 
+def update_user_password(user_id: int, password_hash: str):
+    """Update password hash for a specific user."""
+    db = get_db()
+    try:
+        with db.cursor() as cur:
+            cur.execute("UPDATE users SET password = %s WHERE id = %s", (password_hash, user_id))
+    finally:
+        db.close()
+
+
 def delete_user(user_id: int):
     """Delete a user and all their associated records (leaves, transactions, commissions, payouts, advances)."""
     db = get_db()

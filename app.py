@@ -5,7 +5,7 @@ Main Flask Application - All routes and configuration.
 
 from datetime import datetime, timedelta
 from flask import (
-    Flask, render_template, request, redirect, url_for, session, flash
+    Flask, render_template, request, redirect, url_for, session, flash, jsonify
 )
 
 import config
@@ -917,6 +917,39 @@ def employee_cancel_leave(id):
     models.delete_leave_request(id)
     session['leave_success_emp'] = 'Leave request cancelled successfully.'
     return redirect(url_for('employee_leaves'))
+
+
+@app.route('/employee/change-password', methods=['POST'])
+@login_required
+def employee_change_password():
+    """Allow logged-in employee to change their password."""
+    user = get_current_user()
+    if not user:
+        return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+
+    current_password = request.form.get('current_password', '')
+    new_password = request.form.get('new_password', '').strip()
+    confirm_password = request.form.get('confirm_password', '').strip()
+
+    if not current_password or not new_password or not confirm_password:
+        return jsonify({'success': False, 'error': 'All fields are required.'}), 400
+
+    if not verify_password(current_password, user['password']):
+        return jsonify({'success': False, 'error': 'Current password is incorrect.'}), 400
+
+    if len(new_password) < 6:
+        return jsonify({'success': False, 'error': 'New password must be at least 6 characters long.'}), 400
+
+    if new_password != confirm_password:
+        return jsonify({'success': False, 'error': 'New passwords do not match.'}), 400
+
+    if current_password == new_password:
+        return jsonify({'success': False, 'error': 'New password cannot be the same as current password.'}), 400
+
+    new_hash = hash_password(new_password)
+    models.update_user_password(user['id'], new_hash)
+
+    return jsonify({'success': True, 'message': 'Password changed successfully!'})
 
 
 @app.route('/employee/leaderboard')
