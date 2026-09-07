@@ -2,3 +2,4 @@ Flask>=3.0
 pymysql>=1.1
 cryptography>=42.0
 gunicorn>=21.2
+waitress>=2.1.2
