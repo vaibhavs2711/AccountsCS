@@ -683,24 +683,33 @@ document.addEventListener('click', function(e) {
 
 function filterTransactions() {
     var input = document.getElementById("transactionSearch");
-    var filter = input.value.toLowerCase();
+    var filter = input.value.toLowerCase().trim();
     var table = document.getElementById("transactionsTable");
+    if (!table) return;
     var tr = table.getElementsByTagName("tr");
 
     for (var i = 1; i < tr.length; i++) {
-        var tdCsid = tr[i].getElementsByTagName("td")[2];
-        var tdEmp = tr[i].getElementsByTagName("td")[3];
-        if (tdCsid && tdEmp) {
-            var txtValueCsid = tdCsid.textContent || tdCsid.innerText;
-            var txtValueEmp = tdEmp.textContent || tdEmp.innerText;
-            if (txtValueCsid.toLowerCase().indexOf(filter) > -1 || txtValueEmp.toLowerCase().indexOf(filter) > -1) {
-                tr[i].style.display = "";
-            } else {
-                tr[i].style.display = "none";
-            }
+        var rowText = tr[i].textContent || tr[i].innerText;
+        if (!filter || rowText.toLowerCase().indexOf(filter) > -1) {
+            tr[i].style.display = "";
+        } else {
+            tr[i].style.display = "none";
         }
     }
 }
+
+// Prefill search from URL parameter (?search=...)
+window.addEventListener('DOMContentLoaded', function() {
+    var urlParams = new URLSearchParams(window.location.search);
+    var searchParam = urlParams.get('search');
+    if (searchParam) {
+        var input = document.getElementById("transactionSearch");
+        if (input) {
+            input.value = searchParam;
+            filterTransactions();
+        }
+    }
+});
 </script>
 <script>
     var allPayments = {{ payments_json|safe }};

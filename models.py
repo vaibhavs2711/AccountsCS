@@ -254,6 +254,126 @@ def get_pending_commission_total():
         db.close()
 
 
+def get_pending_brokerage_total():
+    """Return sum of pending brokerage (from buyers + sellers) across all transactions."""
+    db = get_db()
+    try:
+        with db.cursor() as cur:
+            cur.execute(
+                """SELECT 
+                    COALESCE(SUM(GREATEST(0, buyer_commission_amount - buyer_commission_received) + 
+                                 GREATEST(0, seller_commission_amount - seller_commission_received)), 0) AS total
+                   FROM transactions 
+                   WHERE (buyer_commission_amount > buyer_commission_received)
+                      OR (seller_commission_amount > seller_commission_received)"""
+            )
+            return cur.fetchone()['total']
+    finally:
+        db.close()
+
+
+def get_pending_brokerage_details():
+    """Return summary and itemized breakdown of pending brokerage from clients.
+    Each item represents a party (buyer or seller) from whom brokerage is pending,
+    including the responsible employee and transaction details.
+    """
+    db = get_db()
+    try:
+        with db.cursor() as cur:
+            cur.execute(
+                """SELECT t.*, u.name AS employee_name, u.team_type
+                   FROM transactions t
+                   JOIN users u ON t.employee_id = u.id
+                   WHERE (t.buyer_commission_amount > t.buyer_commission_received)
+                      OR (t.seller_commission_amount > t.seller_commission_received)
+                   ORDER BY t.transaction_date DESC, t.id DESC"""
+            )
+            rows = cur.fetchall()
+
+            items = []
+            total_pending = 0.0
+            total_buyer_pending = 0.0
+            total_seller_pending = 0.0
+            distinct_deals = set()
+            employees_set = set()
+
+            for t in rows:
+                b_total = float(t.get('buyer_commission_amount') or 0.0)
+                b_recv = float(t.get('buyer_commission_received') or 0.0)
+                b_pend = max(0.0, b_total - b_recv)
+
+                s_total = float(t.get('seller_commission_amount') or 0.0)
+                s_recv = float(t.get('seller_commission_received') or 0.0)
+                s_pend = max(0.0, s_total - s_recv)
+
+                emp_name = t.get('employee_name') or 'Unknown'
+                deal_has_pending = False
+
+                if b_pend > 0:
+                    total_buyer_pending += b_pend
+                    total_pending += b_pend
+                    deal_has_pending = True
+                    employees_set.add(emp_name)
+                    items.append({
+                        'transaction_id': t['id'],
+                        'property_id': t['property_id'],
+                        'property_name': t['property_name'],
+                        'transaction_date': t.get('transaction_date'),
+                        'employee_id': t['employee_id'],
+                        'employee_name': emp_name,
+                        'party_type': 'BUYER',
+                        'party_role': 'Buyer',
+                        'party_name': (t.get('buyer_name') or '').strip() or 'Buyer (Unspecified)',
+                        'is_broker': bool(t.get('buyer_is_broker')),
+                        'total_amount': b_total,
+                        'received_amount': b_recv,
+                        'pending_amount': b_pend,
+                        'payment_status': t.get('payment_status', 'PENDING'),
+                    })
+
+                if s_pend > 0:
+                    total_seller_pending += s_pend
+                    total_pending += s_pend
+                    deal_has_pending = True
+                    employees_set.add(emp_name)
+                    items.append({
+                        'transaction_id': t['id'],
+                        'property_id': t['property_id'],
+                        'property_name': t['property_name'],
+                        'transaction_date': t.get('transaction_date'),
+                        'employee_id': t['employee_id'],
+                        'employee_name': emp_name,
+                        'party_type': 'SELLER',
+                        'party_role': 'Seller',
+                        'party_name': (t.get('seller_name') or '').strip() or 'Seller (Unspecified)',
+                        'is_broker': bool(t.get('seller_is_broker')),
+                        'total_amount': s_total,
+                        'received_amount': s_recv,
+                        'pending_amount': s_pend,
+                        'payment_status': t.get('payment_status', 'PENDING'),
+                    })
+
+                if deal_has_pending:
+                    distinct_deals.add(t['id'])
+
+            # Sort items by pending_amount descending
+            items.sort(key=lambda x: x['pending_amount'], reverse=True)
+
+            return {
+                'total_pending': total_pending,
+                'buyer_pending': total_buyer_pending,
+                'seller_pending': total_seller_pending,
+                'deal_count': len(distinct_deals),
+                'items': items,
+                'records': items,
+                'employees': sorted(list(employees_set)),
+                'count': len(items)
+            }
+    finally:
+        db.close()
+
+
+
 def mark_transaction_paid(transaction_id: int):
     """Set payment_status to DONE, mark received amounts as fully paid, and recalculate commission."""
     txn = get_transaction_by_id(transaction_id)

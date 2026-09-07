@@ -18,6 +18,79 @@
         color: white !important;
         border-color: var(--accent) !important;
     }
+    .clickable-stat-card {
+        cursor: pointer;
+        position: relative;
+        transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+    }
+    .clickable-stat-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 10px 20px -5px rgba(245, 158, 11, 0.25), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        border-color: #f59e0b;
+    }
+    .stat-label-flex {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        flex-wrap: wrap;
+    }
+    .click-hint-badge {
+        display: inline-flex;
+        align-items: center;
+        font-size: 0.68rem;
+        font-weight: 700;
+        background: rgba(245, 158, 11, 0.15);
+        color: #d97706;
+        padding: 2px 7px;
+        border-radius: 12px;
+        transition: all 0.2s ease;
+    }
+    .clickable-stat-card:hover .click-hint-badge {
+        background: #d97706;
+        color: #ffffff;
+    }
+    /* Filter tab styling in modal */
+    .filter-pill {
+        padding: 5px 14px;
+        border-radius: 20px;
+        border: 1px solid var(--border);
+        background: #f8fafc;
+        color: var(--text-muted);
+        font-size: 0.8rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+    .filter-pill.active {
+        background: var(--primary);
+        color: #fff;
+        border-color: var(--primary);
+    }
+    .party-tag-buyer {
+        background: #ede9fe;
+        color: #6d28d9;
+        padding: 2px 8px;
+        border-radius: 6px;
+        font-size: 0.7rem;
+        font-weight: 700;
+    }
+    .party-tag-seller {
+        background: #fce7f3;
+        color: #be185d;
+        padding: 2px 8px;
+        border-radius: 6px;
+        font-size: 0.7rem;
+        font-weight: 700;
+    }
+    .broker-tag {
+        background: #e0f2fe;
+        color: #0369a1;
+        padding: 2px 6px;
+        border-radius: 6px;
+        font-size: 0.68rem;
+        font-weight: 700;
+    }
 </style>
 <div class="stat-grid">
     <div class="stat-card">
@@ -28,9 +101,12 @@
         <div class="stat-value">{{ transaction_count }}</div>
         <div class="stat-label">Total Transactions</div>
     </div>
-    <div class="stat-card">
-        <div class="stat-value warning">{{ pending_commission }}</div>
-        <div class="stat-label">Commission Pending</div>
+    <div class="stat-card clickable-stat-card" onclick="openPendingBrokerageModal()" title="Click to view pending brokerage details by client & employee">
+        <div class="stat-value warning">{{ pending_brokerage }}</div>
+        <div class="stat-label stat-label-flex">
+            <span>Brokerage Pending</span>
+            <span class="click-hint-badge">View Details ↗</span>
+        </div>
     </div>
     <div class="stat-card">
         <div class="stat-value warning">{{ pending_leaves }}</div>
@@ -151,7 +227,281 @@
     {% endif %}
 </div>
 
+<!-- Pending Brokerage Details Modal -->
+<div class="modal-overlay" id="pendingBrokerageModal" style="display: none; align-items: center; justify-content: center;">
+    <div class="modal-content" style="max-width: 1050px; width: 95%; max-height: 90vh; display: flex; flex-direction: column; padding: 0; overflow: hidden; border-radius: 14px; background: #ffffff; box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.25);">
+        
+        <!-- Modal Header -->
+        <div style="padding: 18px 24px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: flex-start; background: #f8fafc;">
+            <div>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <span style="font-size: 1.3rem;">🏢</span>
+                    <h3 style="margin: 0; font-size: 1.2rem; font-weight: 700; color: var(--primary);">Brokerage Pending from Clients</h3>
+                </div>
+                <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 4px;">
+                    Detailed breakdown of brokerage all employees have to collect from buyers or sellers
+                </div>
+            </div>
+            <button type="button" onclick="closePendingBrokerageModal()" style="background: none; border: none; font-size: 1.3rem; color: #94a3b8; cursor: pointer; padding: 4px 8px; border-radius: 6px; line-height: 1; transition: color 0.2s;" onmouseover="this.style.color='#0f172a'" onmouseout="this.style.color='#94a3b8'" title="Close (Esc)">✕</button>
+        </div>
+
+        <!-- KPI Mini Stats in Modal -->
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; padding: 16px 24px; background: #ffffff; border-bottom: 1px solid var(--border);">
+            <div style="background: #fffbeb; border: 1px solid #fef3c7; border-radius: 10px; padding: 12px 14px;">
+                <div style="font-size: 0.72rem; font-weight: 700; color: #b45309; text-transform: uppercase; letter-spacing: 0.5px;">Total Brokerage Pending</div>
+                <div style="font-size: 1.3rem; font-weight: 800; color: #d97706; margin-top: 4px;">{{ pending_brokerage }}</div>
+                <div style="font-size: 0.72rem; color: #92400e; margin-top: 2px;">{{ pending_brokerage_data.deal_count }} deals with pending balance</div>
+            </div>
+            <div style="background: #f5f3ff; border: 1px solid #ede9fe; border-radius: 10px; padding: 12px 14px;">
+                <div style="font-size: 0.72rem; font-weight: 700; color: #6d28d9; text-transform: uppercase; letter-spacing: 0.5px;">Pending from Buyers</div>
+                <div style="font-size: 1.3rem; font-weight: 800; color: #7c3aed; margin-top: 4px;">{{ format_inr(pending_brokerage_data.buyer_pending) }}</div>
+                <div style="font-size: 0.72rem; color: #6d28d9; margin-top: 2px;">To collect from buyers</div>
+            </div>
+            <div style="background: #fdf2f8; border: 1px solid #fce7f3; border-radius: 10px; padding: 12px 14px;">
+                <div style="font-size: 0.72rem; font-weight: 700; color: #be185d; text-transform: uppercase; letter-spacing: 0.5px;">Pending from Sellers</div>
+                <div style="font-size: 1.3rem; font-weight: 800; color: #db2777; margin-top: 4px;">{{ format_inr(pending_brokerage_data.seller_pending) }}</div>
+                <div style="font-size: 0.72rem; color: #be185d; margin-top: 2px;">To collect from sellers</div>
+            </div>
+            <div style="background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px 14px;">
+                <div style="font-size: 0.72rem; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.5px;">Pending Party Items</div>
+                <div style="font-size: 1.3rem; font-weight: 800; color: #334155; margin-top: 4px;">{{ pending_brokerage_data.count }}</div>
+                <div style="font-size: 0.72rem; color: #64748b; margin-top: 2px;">Individual pending collections</div>
+            </div>
+        </div>
+
+        <!-- Filter & Search Toolbar -->
+        <div style="padding: 12px 24px; background: #f8fafc; border-bottom: 1px solid var(--border); display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between;">
+            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                <button type="button" class="filter-pill active" onclick="setPartyFilter('ALL', this)">All ({{ pending_brokerage_data.count }})</button>
+                <button type="button" class="filter-pill" onclick="setPartyFilter('BUYER', this)">Buyers Only</button>
+                <button type="button" class="filter-pill" onclick="setPartyFilter('SELLER', this)">Sellers Only</button>
+            </div>
+            
+            <div style="display: flex; align-items: center; gap: 10px; flex: 1; justify-content: flex-end; min-width: 260px;">
+                <!-- Employee filter dropdown -->
+                <select id="pendingEmployeeFilter" class="form-select" onchange="filterPendingBrokerage()" style="max-width: 170px; font-size: 0.8rem; padding-block: 5px; border-radius: 8px;">
+                    <option value="ALL">All Employees</option>
+                    {% for emp_name in pending_brokerage_data.employees %}
+                    <option value="{{ emp_name }}">{{ emp_name }}</option>
+                    {% endfor %}
+                </select>
+
+                <!-- Search box -->
+                <div style="position: relative; max-width: 220px; width: 100%;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2" style="position: absolute; left: 10px; top: 50%; transform: translateY(-50%);"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                    <input type="text" id="pendingBrokerageSearch" placeholder="Search party, property..." 
+                           class="form-control" style="border-radius: 8px; font-size: 0.8rem; padding-left: 30px; padding-block: 5px; height: 32px;"
+                           onkeyup="filterPendingBrokerage()">
+                </div>
+            </div>
+        </div>
+
+        <!-- Table Container -->
+        <div style="overflow-y: auto; max-height: 52vh; padding: 0;">
+            {% if pending_brokerage_data.records|length > 0 %}
+            <table class="table mb-0" id="pendingBrokerageTable" style="width: 100%; border-collapse: collapse;">
+                <thead style="position: sticky; top: 0; z-index: 2; background: var(--primary);">
+                    <tr>
+                        <th style="padding: 10px 14px; font-size: 0.78rem;">Pending From (Whom)</th>
+                        <th style="padding: 10px 14px; font-size: 0.78rem; text-align: right;">Pending Amount</th>
+                        <th style="padding: 10px 14px; font-size: 0.78rem;">Total & Received</th>
+                        <th style="padding: 10px 14px; font-size: 0.78rem;">Responsible Employee</th>
+                        <th style="padding: 10px 14px; font-size: 0.78rem;">Property & Deal</th>
+                        <th style="padding: 10px 14px; font-size: 0.78rem; text-align: center;">Action</th>
+                    </tr>
+                </thead>
+                <tbody id="pendingBrokerageTbody">
+                    {% for item in pending_brokerage_data.records %}
+                    <tr class="pending-brokerage-row" 
+                        data-party="{{ item.party_type }}" 
+                        data-employee="{{ item.employee_name }}"
+                        data-search="{{ item.party_name|lower }} {{ item.employee_name|lower }} {{ item.property_name|lower }} {{ item.property_id|lower }}"
+                        style="border-bottom: 1px solid var(--border); transition: background 0.15s;">
+                        
+                        <!-- Client Party Info -->
+                        <td data-label="Pending From" style="padding: 12px 14px; vertical-align: middle;">
+                            <div style="font-weight: 700; color: var(--primary); font-size: 0.88rem; margin-bottom: 4px;">
+                                {{ item.party_name }}
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                                {% if item.party_type == 'BUYER' %}
+                                <span class="party-tag-buyer">Buyer</span>
+                                {% else %}
+                                <span class="party-tag-seller">Seller</span>
+                                {% endif %}
+                                
+                                {% if item.is_broker %}
+                                <span class="broker-tag">Broker</span>
+                                {% endif %}
+                            </div>
+                        </td>
+
+                        <!-- Pending Amount -->
+                        <td data-label="Pending Amount" style="padding: 12px 14px; text-align: right; vertical-align: middle;">
+                            <div style="font-size: 1.05rem; font-weight: 800; color: #dc2626;">
+                                {{ format_inr(item.pending_amount) }}
+                            </div>
+                            <div style="margin-top: 3px;">
+                                {% if item.payment_status == 'PARTIAL' %}
+                                <span style="background: #fef3c7; color: #b45309; font-size: 0.68rem; font-weight: 700; padding: 2px 6px; border-radius: 4px; text-transform: uppercase;">Partial Paid</span>
+                                {% else %}
+                                <span style="background: #fee2e2; color: #b91c1c; font-size: 0.68rem; font-weight: 700; padding: 2px 6px; border-radius: 4px; text-transform: uppercase;">Unpaid</span>
+                                {% endif %}
+                            </div>
+                        </td>
+
+                        <!-- Total & Received -->
+                        <td data-label="Breakdown" style="padding: 12px 14px; vertical-align: middle; font-size: 0.8rem; line-height: 1.4;">
+                            <div>Total: <strong style="color: var(--text);">{{ format_inr(item.total_amount) }}</strong></div>
+                            <div style="color: var(--success); font-weight: 600;">Recv: {{ format_inr(item.received_amount) }}</div>
+                        </td>
+
+                        <!-- Employee -->
+                        <td data-label="Employee" style="padding: 12px 14px; vertical-align: middle;">
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <div class="avatar-circle" style="width: 26px; height: 26px; font-size: 0.72rem; flex-shrink: 0;">
+                                    {{ item.employee_name[0]|upper if item.employee_name else '?' }}
+                                </div>
+                                <span style="font-weight: 600; font-size: 0.84rem; color: var(--text);">{{ item.employee_name }}</span>
+                            </div>
+                        </td>
+
+                        <!-- Property & Date -->
+                        <td data-label="Property" style="padding: 12px 14px; vertical-align: middle; font-size: 0.8rem;">
+                            <div style="font-weight: 600; color: var(--text);">{{ item.property_name }}</div>
+                            <div style="color: var(--text-muted); font-size: 0.72rem;">
+                                CSID: <strong>{{ item.property_id }}</strong>
+                                {% if item.transaction_date %}
+                                 • {{ item.transaction_date.strftime('%d %b %Y') }}
+                                {% endif %}
+                            </div>
+                        </td>
+
+                        <!-- Action Link -->
+                        <td data-label="Action" style="padding: 12px 14px; text-align: center; vertical-align: middle;">
+                            <a href="{{ url_for('admin_transactions') }}?search={{ item.property_id }}" 
+                               class="btn btn-secondary" 
+                               style="padding: 5px 12px; font-size: 0.75rem; font-weight: 600; border-radius: 6px; text-decoration: none; white-space: nowrap; display: inline-flex; align-items: center; gap: 4px;">
+                                View Deal ↗
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            <div id="noPendingMatchMsg" style="display: none; text-align: center; padding: 32px 16px; color: var(--text-muted); font-size: 0.88rem;">
+                🔍 No pending brokerage items match your search or filter.
+            </div>
+            {% else %}
+            <div style="text-align: center; padding: 48px 16px; color: var(--success);">
+                <div style="font-size: 2.2rem; margin-bottom: 8px;">🎉</div>
+                <div style="font-size: 1.1rem; font-weight: 700;">All Brokerage Collected!</div>
+                <div style="font-size: 0.82rem; color: var(--text-muted); margin-top: 4px;">There is currently no pending brokerage from any buyer or seller.</div>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Modal Footer -->
+        <div style="padding: 14px 24px; border-top: 1px solid var(--border); background: #f8fafc; display: flex; justify-content: space-between; align-items: center;">
+            <div style="font-size: 0.8rem; color: var(--text-muted);">
+                Showing <strong id="visiblePendingCount">{{ pending_brokerage_data.count }}</strong> of {{ pending_brokerage_data.count }} pending collections
+            </div>
+            <div style="display: flex; gap: 8px;">
+                <a href="{{ url_for('admin_transactions') }}" class="btn btn-primary" style="padding: 6px 14px; font-size: 0.82rem; border-radius: 6px; text-decoration: none;">
+                    Go to Transactions
+                </a>
+                <button type="button" class="btn" onclick="closePendingBrokerageModal()" style="background: #e2e8f0; color: #334155; border: none; padding: 6px 14px; border-radius: 6px; font-size: 0.82rem; font-weight: 600; cursor: pointer;">
+                    Close
+                </button>
+            </div>
+        </div>
+
+    </div>
+</div>
+
 <script>
+var currentPartyFilter = 'ALL';
+
+function openPendingBrokerageModal() {
+    var modal = document.getElementById('pendingBrokerageModal');
+    if (modal) {
+        modal.classList.add('open');
+        modal.style.display = 'flex';
+        document.body.style.overflow = 'hidden';
+        var searchInput = document.getElementById('pendingBrokerageSearch');
+        if (searchInput) {
+            setTimeout(function() { searchInput.focus(); }, 100);
+        }
+    }
+}
+
+function closePendingBrokerageModal() {
+    var modal = document.getElementById('pendingBrokerageModal');
+    if (modal) {
+        modal.classList.remove('open');
+        modal.style.display = 'none';
+        document.body.style.overflow = '';
+    }
+}
+
+function setPartyFilter(party, btn) {
+    currentPartyFilter = party;
+    document.querySelectorAll('.filter-pill').forEach(function(p) {
+        p.classList.remove('active');
+    });
+    if (btn) btn.classList.add('active');
+    filterPendingBrokerage();
+}
+
+function filterPendingBrokerage() {
+    var searchVal = (document.getElementById('pendingBrokerageSearch') ? document.getElementById('pendingBrokerageSearch').value : '').toLowerCase().trim();
+    var empVal = document.getElementById('pendingEmployeeFilter') ? document.getElementById('pendingEmployeeFilter').value : 'ALL';
+    var rows = document.querySelectorAll('.pending-brokerage-row');
+    var visibleCount = 0;
+
+    rows.forEach(function(row) {
+        var rowParty = row.getAttribute('data-party');
+        var rowEmp = row.getAttribute('data-employee');
+        var searchData = row.getAttribute('data-search') || '';
+
+        var matchesParty = (currentPartyFilter === 'ALL' || rowParty === currentPartyFilter);
+        var matchesEmp = (empVal === 'ALL' || rowEmp === empVal);
+        var matchesSearch = (!searchVal || searchData.indexOf(searchVal) > -1);
+
+        if (matchesParty && matchesEmp && matchesSearch) {
+            row.style.display = '';
+            visibleCount++;
+        } else {
+            row.style.display = 'none';
+        }
+    });
+
+    var countLabel = document.getElementById('visiblePendingCount');
+    if (countLabel) {
+        countLabel.textContent = visibleCount;
+    }
+
+    var noMatchMsg = document.getElementById('noPendingMatchMsg');
+    if (noMatchMsg) {
+        noMatchMsg.style.display = (visibleCount === 0 && rows.length > 0) ? 'block' : 'none';
+    }
+}
+
+// Close on backdrop click
+document.addEventListener('click', function(e) {
+    var modal = document.getElementById('pendingBrokerageModal');
+    if (modal && e.target === modal) {
+        closePendingBrokerageModal();
+    }
+});
+
+// Close on Escape key
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' || e.keyCode === 27) {
+        closePendingBrokerageModal();
+    }
+});
+
 document.querySelectorAll('tr[data-emp-color]').forEach(function(row) {
     var color = row.getAttribute('data-emp-color');
     var pct = row.getAttribute('data-emp-pct') + '%';

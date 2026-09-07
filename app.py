@@ -104,7 +104,8 @@ def admin_dashboard():
     # Stats
     employee_count = models.get_employee_count()
     transaction_count = models.get_transaction_count()
-    pending_commission = format_inr(models.get_pending_commission_total())
+    pending_brokerage_data = models.get_pending_brokerage_details()
+    pending_brokerage = format_inr(pending_brokerage_data['total_pending'])
     pending_leaves = models.get_pending_leave_count()
 
     # Leaderboard: each employee's business this month vs target
@@ -137,7 +138,9 @@ def admin_dashboard():
         current_year=year,
         employee_count=employee_count,
         transaction_count=transaction_count,
-        pending_commission=pending_commission,
+        pending_brokerage=pending_brokerage,
+        pending_brokerage_data=pending_brokerage_data,
+        pending_commission=pending_brokerage,
         pending_leaves=pending_leaves,
         leaderboard=leaderboard,
         recent_transactions=recent_transactions,
