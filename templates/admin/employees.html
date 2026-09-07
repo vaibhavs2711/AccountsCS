@@ -98,10 +98,19 @@
 
 <!-- All Employees Table -->
 <div class="card">
-    <div class="card-title">All Employees ({{ employees|length }})</div>
+    <div class="card-title card-header-responsive" style="display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap;">
+        <span>All Employees (<span id="employeeCountText">{{ employees|length }}</span>)</span>
+        
+        <div style="position: relative; max-width: 280px; width: 100%;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); pointer-events: none;"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+            <input type="text" id="employeeSearch" placeholder="Search by name, email, team..." 
+                   class="form-control" style="border-radius: 8px; font-size: 0.84rem; padding-left: 36px; padding-block: 6px; height: 36px;"
+                   onkeyup="filterEmployees()">
+        </div>
+    </div>
     {% if employees|length > 0 %}
     <div class="table-responsive table-responsive-stack">
-        <table class="table mb-0">
+        <table class="table mb-0" id="employeesTable">
             <thead>
                 <tr>
                     <th>#</th>
@@ -142,6 +151,9 @@
                 {% endfor %}
             </tbody>
         </table>
+        <div id="noEmployeeMatchMsg" style="display: none; text-align: center; padding: 32px 16px; color: var(--text-muted); font-size: 0.88rem;">
+            🔍 No employees match your search.
+        </div>
     </div>
     {% else %}
     <p class="text-muted-custom" style="font-size:0.85rem;">No employees added yet.</p>
@@ -149,6 +161,39 @@
 </div>
 
 <script>
+function filterEmployees() {
+    var input = document.getElementById("employeeSearch");
+    var filter = input.value.toLowerCase().trim();
+    var table = document.getElementById("employeesTable");
+    if (!table) return;
+    var rows = table.querySelectorAll("tbody tr");
+    var visibleCount = 0;
+
+    rows.forEach(function(row) {
+        var rowText = (row.textContent || row.innerText).toLowerCase();
+        if (!filter || rowText.indexOf(filter) > -1) {
+            row.style.display = "";
+            visibleCount++;
+        } else {
+            row.style.display = "none";
+        }
+    });
+
+    var countText = document.getElementById("employeeCountText");
+    if (countText) {
+        if (filter) {
+            countText.textContent = visibleCount + " of " + rows.length;
+        } else {
+            countText.textContent = rows.length;
+        }
+    }
+
+    var noMatchMsg = document.getElementById("noEmployeeMatchMsg");
+    if (noMatchMsg) {
+        noMatchMsg.style.display = (visibleCount === 0 && rows.length > 0) ? "block" : "none";
+    }
+}
+
 function autoFillTeamDefaults(team) {
     var mult = document.getElementById('add_target_multiplier');
     var rate = document.getElementById('add_commission_rate');
