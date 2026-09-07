@@ -47,23 +47,37 @@
                         <span id="selected-employee-text" style="color: var(--text-muted);">— Select Employee —</span>
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
                     </div>
-                    <div id="employee-options" style="display: none; position: absolute; top: 100%; left: 0; right: 0; background: #fff; border: 1px solid #e2e8f0; border-radius: 6px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); z-index: 50; max-height: 200px; overflow-y: auto; margin-top: 4px;">
-                        {% for emp in employees %}
-                        {% set bg = '#e2e8f0' %}
-                        {% set color = '#475569' %}
-                        {% set label = emp.team_type|replace('_', ' ')|title %}
-                        {% if emp.team_type == 'CORE_TEAM' %}
-                            {% set bg = '#fef08a' %}{% set color = '#854d0e' %}
-                        {% elif emp.team_type == 'NORMAL_TEAM' %}
-                            {% set bg = '#bfdbfe' %}{% set color = '#1e40af' %}
-                        {% elif emp.team_type == 'RENT_TEAM' %}
-                            {% set bg = '#bbf7d0' %}{% set color = '#166534' %}
-                        {% endif %}
-                        <div class="emp-option" style="padding: 10px 12px; cursor: pointer; border-bottom: 1px solid #f1f5f9; display: flex; align-items: center; gap: 8px;" onclick="selectEmployee('{{ emp.id }}', '{{ emp.name }}', '{{ bg }}', '{{ color }}', '{{ label }}')" onmouseover="this.style.backgroundColor='#f8fafc'" onmouseout="this.style.backgroundColor='transparent'">
-                            <strong>{{ emp.name }}</strong>
-                            <span style="background-color: {{ bg }}; color: {{ color }}; padding: 2px 8px; border-radius: 12px; font-size: 0.7rem; font-weight: 600;">{{ label }}</span>
+                    <div id="employee-options" style="display: none; position: absolute; top: 100%; left: 0; right: 0; background: #fff; border: 1px solid #e2e8f0; border-radius: 6px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05); z-index: 100; margin-top: 4px; overflow: hidden;">
+                        <div style="padding: 8px; border-bottom: 1px solid #f1f5f9; background: #f8fafc;">
+                            <div style="position: relative; display: flex; align-items: center;">
+                                <svg style="position: absolute; left: 10px; color: #94a3b8; pointer-events: none;" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <circle cx="11" cy="11" r="8"></circle>
+                                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                                </svg>
+                                <input type="text" id="employee-search-input" class="form-control" placeholder="Search employee..." style="padding: 6px 10px 6px 32px; font-size: 0.85rem; width: 100%; box-sizing: border-box; border: 1px solid #cbd5e1; border-radius: 6px; outline: none; background: #ffffff;" onclick="event.stopPropagation()" oninput="filterEmployees(this.value)" onkeydown="if(event.key === 'Escape') { document.getElementById('employee-options').style.display = 'none'; }" autocomplete="off">
+                            </div>
                         </div>
-                        {% endfor %}
+                        <div id="employee-options-list" style="max-height: 200px; overflow-y: auto;">
+                            {% for emp in employees %}
+                            {% set bg = '#e2e8f0' %}
+                            {% set color = '#475569' %}
+                            {% set label = emp.team_type|replace('_', ' ')|title %}
+                            {% if emp.team_type == 'CORE_TEAM' %}
+                                {% set bg = '#fef08a' %}{% set color = '#854d0e' %}
+                            {% elif emp.team_type == 'NORMAL_TEAM' %}
+                                {% set bg = '#bfdbfe' %}{% set color = '#1e40af' %}
+                            {% elif emp.team_type == 'RENT_TEAM' %}
+                                {% set bg = '#bbf7d0' %}{% set color = '#166534' %}
+                            {% endif %}
+                            <div class="emp-option" data-name="{{ emp.name|lower }}" style="padding: 10px 12px; cursor: pointer; border-bottom: 1px solid #f1f5f9; display: flex; align-items: center; justify-content: space-between; gap: 8px;" onclick="selectEmployee('{{ emp.id }}', '{{ emp.name }}', '{{ bg }}', '{{ color }}', '{{ label }}')" onmouseover="this.style.backgroundColor='#f8fafc'" onmouseout="this.style.backgroundColor='transparent'">
+                                <strong>{{ emp.name }}</strong>
+                                <span style="background-color: {{ bg }}; color: {{ color }}; padding: 2px 8px; border-radius: 12px; font-size: 0.7rem; font-weight: 600;">{{ label }}</span>
+                            </div>
+                            {% endfor %}
+                            <div id="no-employee-found" style="display: none; padding: 14px 12px; text-align: center; color: #94a3b8; font-size: 0.85rem;">
+                                No employees found
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -430,21 +444,58 @@ var employeeData = {
 
 function toggleEmpDropdown(e) {
     var opts = document.getElementById('employee-options');
-    opts.style.display = opts.style.display === 'none' ? 'block' : 'none';
-    if(e) e.stopPropagation();
+    var isHidden = !opts.style.display || opts.style.display === 'none';
+    if (isHidden) {
+        opts.style.display = 'block';
+        var searchInput = document.getElementById('employee-search-input');
+        if (searchInput) {
+            searchInput.value = '';
+            filterEmployees('');
+            setTimeout(function() {
+                searchInput.focus();
+            }, 50);
+        }
+    } else {
+        opts.style.display = 'none';
+    }
+    if (e) e.stopPropagation();
+}
+
+function filterEmployees(query) {
+    query = (query || '').toLowerCase().trim();
+    var options = document.querySelectorAll('#employee-options-list .emp-option');
+    var count = 0;
+    options.forEach(function(opt) {
+        var name = (opt.getAttribute('data-name') || '').toLowerCase();
+        if (!query || name.indexOf(query) !== -1) {
+            opt.style.display = 'flex';
+            count++;
+        } else {
+            opt.style.display = 'none';
+        }
+    });
+    var noFound = document.getElementById('no-employee-found');
+    if (noFound) {
+        noFound.style.display = count === 0 ? 'block' : 'none';
+    }
 }
 
 function selectEmployee(id, name, bg, color, label) {
     document.getElementById('hidden_employee_id').value = id;
     document.getElementById('selected-employee-text').innerHTML = `<strong>${name}</strong> <span style="background-color: ${bg}; color: ${color}; padding: 2px 8px; border-radius: 12px; font-size: 0.7rem; font-weight: 600;">${label}</span>`;
     document.getElementById('employee-options').style.display = 'none';
+    var searchInput = document.getElementById('employee-search-input');
+    if (searchInput) {
+        searchInput.value = '';
+        filterEmployees('');
+    }
 }
 
 window.addEventListener('click', function(event) {
     var wrapper = document.querySelector('.custom-select-wrapper');
     if (wrapper && !wrapper.contains(event.target)) {
         var opts = document.getElementById('employee-options');
-        if(opts) opts.style.display = 'none';
+        if (opts) opts.style.display = 'none';
     }
 });
 
@@ -456,6 +507,13 @@ function openAddModal() {
     // Reset custom employee dropdown
     document.getElementById('hidden_employee_id').value = '';
     document.getElementById('selected-employee-text').innerHTML = `<span style="color: var(--text-muted);">— Select Employee —</span>`;
+    var opts = document.getElementById('employee-options');
+    if (opts) opts.style.display = 'none';
+    var searchInput = document.getElementById('employee-search-input');
+    if (searchInput) {
+        searchInput.value = '';
+        filterEmployees('');
+    }
     
     // Reset Name/Broker controls
     var b_name = document.querySelector('input[name="buyer_name"]');
@@ -562,12 +620,27 @@ function editTransaction(id, employee_id, property_id, property_name, transactio
         });
     }
     
+    var opts = document.getElementById('employee-options');
+    if (opts) opts.style.display = 'none';
+    var searchInput = document.getElementById('employee-search-input');
+    if (searchInput) {
+        searchInput.value = '';
+        filterEmployees('');
+    }
+    
     document.getElementById('form-submit-btn').innerText = 'Save Changes';
     document.getElementById('transactionModal').classList.add('open');
 }
 
 function closeModal() {
     document.getElementById('transactionModal').classList.remove('open');
+    var opts = document.getElementById('employee-options');
+    if (opts) opts.style.display = 'none';
+    var searchInput = document.getElementById('employee-search-input');
+    if (searchInput) {
+        searchInput.value = '';
+        filterEmployees('');
+    }
 }
 
 // Close modal when clicking outside of it
