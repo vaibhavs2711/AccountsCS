@@ -37,6 +37,7 @@
     {% endif %}
 
     <form id="transaction-form" method="POST" action="{{ url_for('admin_add_transaction') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="transaction_id" id="transaction_id" value="">
         <div class="d-flex gap-3 mb-3 form-row-custom">
             <div style="flex:1;">
@@ -360,35 +361,39 @@
                             <div class="dropdown-wrapper" style="position:relative;">
                                 <span class="action-menu" onclick="toggleDropdown(this)" style="flex-shrink:0; cursor:pointer;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"></circle><circle cx="12" cy="5" r="1"></circle><circle cx="12" cy="19" r="1"></circle></svg></span>
                                 <div class="dropdown-menu-custom" style="display:none; position:absolute; right:0; top:100%; background:#fff; border:1px solid #eee; border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,0.1); z-index:100; min-width:140px; padding:4px 0;">
-                                    {% if t.payment_status != 'DONE' %}
-                                    <form method="POST" action="{{ url_for('admin_mark_paid', id=t.id) }}" style="margin:0;">
-                                        <button type="submit" style="width:100%; text-align:left; background:none; border:none; padding:8px 16px; font-size:0.8rem; cursor:pointer; color:var(--text); display:flex; align-items:center; gap:8px;">
-                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                                            Mark Paid
-                                        </button>
-                                    </form>
-                                    <form method="POST" action="{{ url_for('admin_settle_transaction', id=t.id) }}" style="margin:0;">
-                                        <button type="submit" style="width:100%; text-align:left; background:none; border:none; padding:8px 16px; font-size:0.8rem; cursor:pointer; color:var(--warning); display:flex; align-items:center; gap:8px;">
-                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--warning)" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-                                            Force Complete
-                                        </button>
-                                    </form>
-                                    {% endif %}
-                                    {% if t.emp_payout_status == 'UNPAID' %}
-                                    <form method="POST" action="{{ url_for('admin_pay_employee_commission', id=t.id) }}" style="margin:0;">
-                                        <button type="submit" style="width:100%; text-align:left; background:none; border:none; padding:8px 16px; font-size:0.8rem; cursor:pointer; color:#166534; display:flex; align-items:center; gap:8px;" onclick="return confirm('Pay employee commission for this deal?')">
-                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#166534" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
-                                            Pay Employee
-                                        </button>
-                                    </form>
-                                    {% else %}
-                                    <form method="POST" action="{{ url_for('admin_unpay_employee_commission', id=t.id) }}" style="margin:0;">
-                                        <button type="submit" style="width:100%; text-align:left; background:none; border:none; padding:8px 16px; font-size:0.8rem; cursor:pointer; color:#92400e; display:flex; align-items:center; gap:8px;" onclick="return confirm('Revert employee payout?')">
-                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#92400e" stroke-width="2"><path d="M1 4v6h6"></path><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>
-                                            Undo Emp Payout
-                                        </button>
-                                    </form>
-                                    {% endif %}
+{% if t.payment_status != 'DONE' %}
+                                     <form method="POST" action="{{ url_for('admin_mark_paid', id=t.id) }}" style="margin:0;">
+                                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                         <button type="submit" style="width:100%; text-align:left; background:none; border:none; padding:8px 16px; font-size:0.8rem; cursor:pointer; color:var(--text); display:flex; align-items:center; gap:8px;">
+                                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                                             Mark Paid
+                                         </button>
+                                     </form>
+                                     <form method="POST" action="{{ url_for('admin_settle_transaction', id=t.id) }}" style="margin:0;">
+                                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                         <button type="submit" style="width:100%; text-align:left; background:none; border:none; padding:8px 16px; font-size:0.8rem; cursor:pointer; color:var(--warning); display:flex; align-items:center; gap:8px;">
+                                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--warning)" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                                             Force Complete
+                                         </button>
+                                     </form>
+                                     {% endif %}
+                                     {% if t.emp_payout_status == 'UNPAID' %}
+                                     <form method="POST" action="{{ url_for('admin_pay_employee_commission', id=t.id) }}" style="margin:0;">
+                                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                         <button type="submit" style="width:100%; text-align:left; background:none; border:none; padding:8px 16px; font-size:0.8rem; cursor:pointer; color:#166534; display:flex; align-items:center; gap:8px;" onclick="return confirm('Pay employee commission for this deal?')">
+                                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#166534" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
+                                             Pay Employee
+                                         </button>
+                                     </form>
+                                     {% else %}
+                                     <form method="POST" action="{{ url_for('admin_unpay_employee_commission', id=t.id) }}" style="margin:0;">
+                                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                         <button type="submit" style="width:100%; text-align:left; background:none; border:none; padding:8px 16px; font-size:0.8rem; cursor:pointer; color:#92400e; display:flex; align-items:center; gap:8px;" onclick="return confirm('Revert employee payout?')">
+                                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#92400e" stroke-width="2"><path d="M1 4v6h6"></path><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>
+                                             Undo Emp Payout
+                                         </button>
+                                     </form>
+                                     {% endif %}
                                     <button type="button" onclick="openDeleteModal({{ t.id }})" style="width:100%; text-align:left; background:none; border:none; padding:8px 16px; font-size:0.8rem; cursor:pointer; color:var(--danger); display:flex; align-items:center; gap:8px;">
                                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"></path><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
                                         Delete
@@ -424,6 +429,7 @@
         <div style="display:flex; gap: 12px; justify-content: center;">
             <button type="button" class="btn" style="background:#f1f5f9; color:#475569; padding:8px 24px; border-radius:8px; border:none; cursor:pointer; font-weight:600;" onclick="closeDeleteModal()">Cancel</button>
             <form id="confirmDeleteForm" method="POST" action="" style="margin:0;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button type="submit" class="btn" style="background:var(--danger); color:#fff; padding:8px 24px; border-radius:8px; border:none; cursor:pointer; font-weight:600;">Delete</button>
             </form>
         </div>

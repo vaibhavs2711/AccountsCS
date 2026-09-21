@@ -20,6 +20,9 @@ from commission import (
     get_progress_color, get_progress_percentage,
 )
 import models
+from flask_wtf.csrf import CSRFProtect, CSRFError
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 
 # ---------------------------------------------------------------------------
 # App setup
@@ -29,6 +32,48 @@ app = Flask(__name__)
 app.secret_key = config.SECRET_KEY
 app.permanent_session_lifetime = config.PERMANENT_SESSION_LIFETIME
 app.config['SESSION_COOKIE_HTTPONLY'] = config.SESSION_COOKIE_HTTPONLY
+app.config['SESSION_COOKIE_SECURE'] = config.SESSION_COOKIE_SECURE
+app.config['SESSION_COOKIE_SAMESITE'] = config.SESSION_COOKIE_SAMESITE
+
+# CSRF Protection
+app.config['WTF_CSRF_ENABLED'] = config.WTF_CSRF_ENABLED
+app.config['WTF_CSRF_TIME_LIMIT'] = config.WTF_CSRF_TIME_LIMIT
+app.config['WTF_CSRF_SSL_STRICT'] = config.WTF_CSRF_SSL_STRICT
+csrf = CSRFProtect(app)
+
+# Rate Limiting
+limiter = Limiter(
+    get_remote_address,
+    app=app,
+    default_limits=["200 per day", "50 per hour"],
+    storage_uri="memory://",
+)
+
+# Security Headers (manual implementation for production)
+if config.TALISMAN_ENABLED:
+    @app.after_request
+    def add_security_headers(response):
+        response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
+        response.headers['X-Content-Type-Options'] = 'nosniff'
+        response.headers['X-Frame-Options'] = 'DENY'
+        response.headers['X-XSS-Protection'] = '1; mode=block'
+        response.headers['Content-Security-Policy'] = (
+            "default-src 'self'; "
+            "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+            "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+            "font-src 'self' https://cdn.jsdelivr.net; "
+            "img-src 'self' data:; "
+            "connect-src 'self'"
+        )
+        response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+        response.headers['Permissions-Policy'] = 'geolocation=(), microphone=(), camera=()'
+        return response
+
+
+# CSRF Error Handler
+@app.errorhandler(CSRFError)
+def handle_csrf_error(e):
+    return render_template('login.html', error='CSRF token missing or invalid. Please refresh and try again.'), 400
 
 
 # ---------------------------------------------------------------------------
@@ -58,6 +103,7 @@ def index():
 
 
 @app.route('/login', methods=['GET', 'POST'])
+@limiter.limit("5 per minute; 20 per hour")
 def login():
     """Login page - GET renders form, POST authenticates."""
     user = get_current_user()
@@ -70,14 +116,19 @@ def login():
     if request.method == 'POST':
         email = request.form.get('email', '').strip()
         password = request.form.get('password', '')
-        user = models.get_user_by_email(email)
-        if user and verify_password(password, user['password']):
-            session.permanent = True
-            session['user_id'] = user['id']
-            if user['role'] == 'ADMIN':
-                return redirect(url_for('admin_dashboard'))
-            return redirect(url_for('employee_dashboard'))
-        error = 'Invalid email or password.'
+        
+        # Validate email format
+        if not models.validate_email(email):
+            error = 'Invalid email format.'
+        else:
+            user = models.get_user_by_email(email)
+            if user and verify_password(password, user['password']):
+                session.permanent = True
+                session['user_id'] = user['id']
+                if user['role'] == 'ADMIN':
+                    return redirect(url_for('admin_dashboard'))
+                return redirect(url_for('employee_dashboard'))
+            error = 'Invalid email or password.'
 
     return render_template('login.html', error=error)
 
@@ -194,16 +245,35 @@ def admin_add_employee():
         session['emp_error'] = 'All fields are required.'
         return redirect(url_for('admin_employees'))
 
+    if not models.validate_name(name):
+        session['emp_error'] = 'Invalid name format.'
+        return redirect(url_for('admin_employees'))
+
+    if not models.validate_email(email):
+        session['emp_error'] = 'Invalid email format.'
+        return redirect(url_for('admin_employees'))
+
+    valid, msg = models.validate_password_strength(password)
+    if not valid:
+        session['emp_error'] = msg
+        return redirect(url_for('admin_employees'))
+
     if team_type not in TEAM_CONFIG:
         session['emp_error'] = 'Invalid team type.'
         return redirect(url_for('admin_employees'))
 
     try:
         salary = float(salary_str)
+        if salary < 0 or salary > 10000000:
+            raise ValueError
         target_multiplier = float(target_mult_str) if target_mult_str else TEAM_CONFIG[team_type]['multiplier']
         commission_rate = (float(comm_rate_str) / 100.0) if comm_rate_str else TEAM_CONFIG[team_type]['commission_rate']
+        if not (0 <= target_multiplier <= 100):
+            raise ValueError
+        if not (0 <= commission_rate <= 1):
+            raise ValueError
     except ValueError:
-        session['emp_error'] = 'Invalid salary or multiplier value.'
+        session['emp_error'] = 'Invalid salary, multiplier, or commission rate value.'
         return redirect(url_for('admin_employees'))
 
     # Check unique email
@@ -936,8 +1006,9 @@ def employee_change_password():
     if not new_password or not confirm_password:
         return jsonify({'success': False, 'error': 'Please enter and confirm your new password.'}), 400
 
-    if len(new_password) < 6:
-        return jsonify({'success': False, 'error': 'New password must be at least 6 characters long.'}), 400
+    valid, msg = models.validate_password_strength(new_password)
+    if not valid:
+        return jsonify({'success': False, 'error': msg}), 400
 
     if new_password != confirm_password:
         return jsonify({'success': False, 'error': 'New passwords do not match.'}), 400

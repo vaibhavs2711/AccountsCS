@@ -28,6 +28,22 @@ MYSQL_PASSWORD = os.environ.get('MYSQL_PASSWORD') or 'root'
 MYSQL_DB = os.environ.get('MYSQL_DB') or 'cityscope_accounts'
 
 # Flask Configuration
-SECRET_KEY = os.environ.get('SECRET_KEY') or 'cityscope-secret-key-change-in-production-2024'
+SECRET_KEY = os.environ.get('SECRET_KEY')
+if not SECRET_KEY:
+    import secrets
+    SECRET_KEY = secrets.token_hex(32)
+    if os.environ.get('FLASK_ENV') == 'production':
+        raise ValueError("SECRET_KEY must be set in production environment!")
+
 PERMANENT_SESSION_LIFETIME = timedelta(days=7)
 SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SECURE = os.environ.get('FLASK_ENV') == 'production'
+SESSION_COOKIE_SAMESITE = 'Lax'
+
+# CSRF Configuration
+WTF_CSRF_ENABLED = True
+WTF_CSRF_TIME_LIMIT = 3600
+WTF_CSRF_SSL_STRICT = os.environ.get('FLASK_ENV') == 'production'
+
+# Security Headers
+TALISMAN_ENABLED = os.environ.get('FLASK_ENV') == 'production'

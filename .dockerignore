@@ -10,3 +10,10 @@ venv/
 *.log
 Dockerfile
 docker-compose.yml
+.env
+*.env
+*.pem
+*.key
+*.crt
+deploy.zip
+cpanel_deployment_info.txt

@@ -6,6 +6,96 @@ All direct MySQL interactions via pymysql.
 import pymysql
 import pymysql.cursors
 import config
+import re
+from typing import Optional
+
+
+# ---------------------------------------------------------------------------
+# Input Validation & Sanitization
+# ---------------------------------------------------------------------------
+
+EMAIL_REGEX = re.compile(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$')
+PROPERTY_ID_REGEX = re.compile(r'^CSID-[A-Z0-9\-]+$', re.IGNORECASE)
+SAFE_STRING_REGEX = re.compile(r'^[a-zA-Z0-9\s\-_\.,@()]+$')
+
+MAX_NAME_LENGTH = 100
+MAX_EMAIL_LENGTH = 255
+MAX_PROPERTY_ID_LENGTH = 50
+MAX_PROPERTY_NAME_LENGTH = 200
+MAX_REASON_LENGTH = 500
+MAX_PASSWORD_LENGTH = 128
+
+
+def validate_email(email: str) -> bool:
+    """Validate email format."""
+    if not email or len(email) > MAX_EMAIL_LENGTH:
+        return False
+    return bool(EMAIL_REGEX.match(email))
+
+
+def validate_name(name: str) -> bool:
+    """Validate name - alphanumeric with spaces, hyphens, dots."""
+    if not name or len(name) > MAX_NAME_LENGTH:
+        return False
+    return bool(SAFE_STRING_REGEX.match(name))
+
+
+def validate_property_id(prop_id: str) -> bool:
+    """Validate property ID format (CSID-...)."""
+    if not prop_id or len(prop_id) > MAX_PROPERTY_ID_LENGTH:
+        return False
+    return bool(PROPERTY_ID_REGEX.match(prop_id.upper()))
+
+
+def validate_property_name(name: str) -> bool:
+    """Validate property name."""
+    if not name or len(name) > MAX_PROPERTY_NAME_LENGTH:
+        return False
+    return True  # Allow more characters for property names
+
+
+def validate_reason(reason: str) -> bool:
+    """Validate leave/advance reason."""
+    if reason and len(reason) > MAX_REASON_LENGTH:
+        return False
+    return True
+
+
+def validate_password_strength(password: str) -> tuple[bool, str]:
+    """Validate password meets minimum requirements.
+    Returns (is_valid, error_message).
+    """
+    if len(password) < 8:
+        return False, "Password must be at least 8 characters long."
+    if len(password) > MAX_PASSWORD_LENGTH:
+        return False, "Password is too long."
+    if not re.search(r'[A-Z]', password):
+        return False, "Password must contain at least one uppercase letter."
+    if not re.search(r'[a-z]', password):
+        return False, "Password must contain at least one lowercase letter."
+    if not re.search(r'\d', password):
+        return False, "Password must contain at least one number."
+    if not re.search(r'[!@#$%^&*(),.?":{}|<>]', password):
+        return False, "Password must contain at least one special character."
+    return True, ""
+
+
+def sanitize_string(value: str, max_length: int = 255) -> str:
+    """Basic string sanitization - strip and limit length."""
+    if value is None:
+        return ""
+    return value.strip()[:max_length]
+
+
+def sanitize_numeric(value: str, min_val: float = 0, max_val: float = 1e12) -> Optional[float]:
+    """Sanitize and validate numeric input."""
+    try:
+        num = float(value)
+        if num < min_val or num > max_val:
+            return None
+        return num
+    except (ValueError, TypeError):
+        return None
 
 
 # ---------------------------------------------------------------------------
@@ -176,11 +266,12 @@ def get_all_transactions(sort='added'):
     """Return all transactions with employee name, ordered dynamically."""
     db = get_db()
     
-    order_clause = "t.created_at DESC"
-    if sort == 'date':
-        order_clause = "t.transaction_date DESC"
-    elif sort == 'updated':
-        order_clause = "t.updated_at DESC"
+    allowed_sorts = {
+        'added': 't.created_at DESC',
+        'date': 't.transaction_date DESC',
+        'updated': 't.updated_at DESC'
+    }
+    order_clause = allowed_sorts.get(sort, 't.created_at DESC')
         
     try:
         with db.cursor() as cur:

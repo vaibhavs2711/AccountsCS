@@ -19,6 +19,7 @@
         </button>
         <button class="btn btn-primary" onclick="openEditModal()">✎ Edit Settings</button>
         <form method="POST" action="{{ url_for('admin_delete_employee', id=employee.id) }}" style="margin: 0;" onsubmit="return confirm('WARNING: This will permanently delete this employee and ALL their transactions, leaves, and history. Are you absolutely sure?');">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button type="submit" class="btn btn-secondary" style="background-color: var(--danger); border-color: var(--danger); color: white; padding: 6px 12px; display: flex; align-items: center; justify-content: center; height: 100%; box-sizing: border-box;" title="Delete Employee">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
             </button>
@@ -309,9 +310,11 @@
                 {% if adv.status == 'ACTIVE' %}
                 <div style="display: flex; gap: 8px;">
                     <form method="POST" action="{{ url_for('admin_settle_advance', id=adv.id) }}" style="margin: 0;">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <button type="submit" class="btn-success-sm" style="padding: 4px 12px; font-size: 0.72rem;">✓ Settle</button>
                     </form>
                     <form method="POST" action="{{ url_for('admin_delete_advance', id=adv.id) }}" style="margin: 0;" onsubmit="return confirm('Delete this advance record?');">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <button type="submit" class="btn-danger-sm" style="padding: 4px 12px; font-size: 0.72rem;">✕ Delete</button>
                     </form>
                 </div>
@@ -366,6 +369,7 @@
                 <div style="margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--border);">
                     {% if t.emp_payout_status == 'UNPAID' %}
                     <form method="POST" action="{{ url_for('admin_pay_employee_commission', id=t.id) }}" style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <input type="date" name="paid_date" value="{{ today }}" style="font-size: 0.75rem; padding: 4px 8px; border: 1px solid var(--border); border-radius: 6px;">
                         <button type="submit" class="btn-success-sm" style="padding: 4px 14px; font-size: 0.72rem;" onclick="return confirm('Mark {{ format_inr(t.employee_commission) }} commission as paid?')">💰 Pay Commission</button>
                     </form>
@@ -373,6 +377,7 @@
                     <div style="display: flex; justify-content: space-between; align-items: center;">
                         <span style="font-size: 0.78rem; color: var(--success); font-weight: 600;">✓ Commission paid</span>
                         <form method="POST" action="{{ url_for('admin_unpay_employee_commission', id=t.id) }}" style="margin: 0;">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                             <button type="submit" class="btn-danger-sm" style="padding: 3px 10px; font-size: 0.68rem;" onclick="return confirm('Revert this payout?')">↩ Undo</button>
                         </form>
                     </div>
@@ -424,6 +429,7 @@
                 <span style="cursor: pointer; font-size: 1.2rem; color: var(--text-muted);" onclick="document.getElementById('addAdvanceModal').classList.remove('open')">✕</span>
             </div>
             <form method="POST" action="{{ url_for('admin_add_advance', id=employee.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <div class="mb-3">
                     <label class="form-label" style="font-size:0.85rem; font-weight:600;">Advance Type</label>
                     <select class="form-select" name="advance_type" required>
@@ -586,6 +592,7 @@
             </div>
 
             <form method="POST" action="{{ url_for('admin_update_employee', id=employee.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <div class="d-flex gap-3 mb-3 form-row-custom">
                     <div style="flex:1;">
                         <label class="form-label" style="font-size:0.85rem; font-weight:600;">Full Name</label>

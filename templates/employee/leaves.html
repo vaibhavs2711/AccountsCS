@@ -15,6 +15,7 @@
             Change Password
         </button>
         <form method="POST" action="{{ url_for('logout') }}" style="margin:0; display:flex; align-items:center;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button type="submit" style="background:none; border:none; color:rgba(255,255,255,0.7); cursor:pointer; padding: 6px 12px; transition: 0.2s;" title="Logout" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='rgba(255,255,255,0.7)'">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
             </button>
@@ -43,6 +44,7 @@
         </div>
 
         <form method="POST" action="{{ url_for('employee_apply_leave') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="mb-3">
                 <label class="form-label" style="font-size:0.85rem; font-weight:600;">Date of Leave</label>
                 <input type="date" class="form-control" name="date_of_leave" required
@@ -80,6 +82,7 @@
                     <div style="font-size: 0.7rem; color: var(--text-muted);">Applied on: {{ lr.applied_on.strftime('%d %b %Y %I:%M %p') }}</div>
                     {% if lr.status == 'APPROVED' and lr.date_of_leave.strftime('%Y-%m-%d') >= today %}
                     <form action="{{ url_for('employee_cancel_leave', id=lr.id) }}" method="POST" style="margin:0;" onsubmit="return confirm('Are you sure you want to cancel this leave?');">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <button type="submit" class="btn btn-secondary" style="padding: 2px 8px; font-size: 0.7rem; border-radius: 4px; background: #ef4444; border: none; cursor: pointer;">Cancel</button>
                     </form>
                     {% endif %}
