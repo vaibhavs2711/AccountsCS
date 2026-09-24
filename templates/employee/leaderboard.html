@@ -5,7 +5,9 @@
 {% block body %}
 <!-- Top Nav -->
 <div class="topnav">
-    <div class="brand">City<span>scope</span></div>
+    <div class="brand" style="padding: 0; display: flex; align-items: center;">
+        <img src="{{ url_for('static', filename='images/logo.png') }}" alt="Cityscope Logo" style="height: 30px; object-fit: contain;">
+    </div>
     <div class="nav-links">
         <a href="{{ url_for('employee_dashboard') }}" class="{% if request.path == '/employee' %}active{% endif %}">Dashboard</a>
         <a href="{{ url_for('employee_leaderboard') }}" class="{% if request.path == '/employee/leaderboard' %}active{% endif %}">Leaderboard</a>
