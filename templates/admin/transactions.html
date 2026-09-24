@@ -272,6 +272,9 @@
                         {% if t.basic_price %}
                         <div style="font-size: 0.72rem; color: var(--text-muted);">Val: {{ format_inr(t.basic_price) }}</div>
                         {% endif %}
+                        {% if t.cityscope_commission %}
+                        <div style="font-size: 0.72rem; color: var(--text-muted);">Brokerage: {{ format_inr(t.cityscope_commission) }}</div>
+                        {% endif %}
                     </td>
                     <td data-label="CSID" style="color:var(--text-muted); font-size:0.75rem; white-space: nowrap;">{{ t.property_id }}</td>
                     <td data-label="Employee" style="white-space: nowrap;">
