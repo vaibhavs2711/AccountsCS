@@ -757,6 +757,7 @@ window.addEventListener('DOMContentLoaded', function() {
             basic_price: {{ t.basic_price or 0 }},
             employee_name: {{ (t.employee_name or '')|tojson }},
             gst_applied: {{ ('Yes' if (t.buyer_gst_applied or t.seller_gst_applied) else 'No')|tojson }},
+            cityscope_commission: {{ t.cityscope_commission or 0 }},
             net_commission: {{ t.net_commission or 0 }},
             employee_commission: {{ t.employee_commission or 0 }},
             team_type: {{ (t.team_type or '')|tojson }},
@@ -777,6 +778,8 @@ window.addEventListener('DOMContentLoaded', function() {
             "Property ID",
             "Property Name",
             "Basic Price (INR)",
+            "Total Brokerage (INR)",
+            "Brokerage (%)",
             "Employee Name",
             "GST Applied",
             "Net Commission (INR)",
@@ -800,6 +803,11 @@ window.addEventListener('DOMContentLoaded', function() {
             var buyer_pending = Math.max(0, t.buyer_commission_amount - t.buyer_commission_received);
             var seller_pending = Math.max(0, t.seller_commission_amount - t.seller_commission_received);
             
+            var brk_pct = 0;
+            if (t.basic_price > 0 && t.cityscope_commission > 0) {
+                brk_pct = Math.round((t.cityscope_commission / t.basic_price) * 10000) / 100;
+            }
+            
             // Calculate effective share percentage
             var eff_pct = 0;
             if (t.net_commission > 0) {
@@ -811,6 +819,8 @@ window.addEventListener('DOMContentLoaded', function() {
                 t.property_id,
                 t.property_name,
                 t.basic_price,
+                t.cityscope_commission,
+                brk_pct + "%",
                 t.employee_name,
                 t.gst_applied,
                 t.net_commission,
