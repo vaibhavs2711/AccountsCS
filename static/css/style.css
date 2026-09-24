@@ -412,8 +412,9 @@ button:active, .btn:active {
     width: 220px;
     height: 100vh;
     height: 100dvh;
-    background: var(--primary);
-    color: #fff;
+    background: var(--surface);
+    color: var(--text);
+    border-right: 1px solid var(--border);
     display: flex;
     flex-direction: column;
     z-index: 1000;
@@ -430,7 +431,7 @@ button:active, .btn:active {
 .sidebar .brand-sub {
     padding: 0 20px 16px;
     font-size: 0.75rem;
-    color: rgba(255,255,255,0.55);
+    color: var(--text-muted);
     letter-spacing: 0.5px;
 }
 
@@ -443,40 +444,40 @@ button:active, .btn:active {
 .sidebar nav a {
     display: block;
     padding: 10px 20px;
-    color: rgba(255,255,255,0.75);
+    color: var(--text-muted);
     font-size: 0.88rem;
     text-decoration: none;
     transition: background 0.15s;
 }
 
 .sidebar nav a:hover {
-    background: rgba(255,255,255,0.08);
-    color: #fff;
+    background: var(--bg);
+    color: var(--primary);
 }
 
 .sidebar nav a.active {
-    background: rgba(255,255,255,0.15);
+    background: var(--bg);
     color: var(--accent);
     font-weight: 600;
 }
 
 .sidebar .sidebar-footer {
     padding: 16px 20px;
-    border-top: 1px solid rgba(255,255,255,0.12);
+    border-top: 1px solid var(--border);
     font-size: 0.78rem;
-    color: rgba(255,255,255,0.55);
+    color: var(--text-muted);
 }
 
 .sidebar .sidebar-footer strong {
-    color: #fff;
+    color: var(--text);
 }
 
 .sidebar .logout-btn {
     display: inline-block;
     margin-top: 8px;
-    background: rgba(255,255,255,0.1);
-    color: #fff;
-    border: none;
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--border);
     padding: 6px 14px;
     border-radius: var(--radius);
     font-size: 0.8rem;
@@ -486,7 +487,7 @@ button:active, .btn:active {
 }
 
 .sidebar .logout-btn:hover {
-    background: rgba(255,255,255,0.2);
+    background: var(--border);
 }
 
 /* ---------- Admin Main Content ---------- */
@@ -519,8 +520,9 @@ button:active, .btn:active {
 .topnav {
     position: sticky;
     top: 0;
-    background: var(--primary);
-    color: #fff;
+    background: var(--surface);
+    color: var(--text);
+    border-bottom: 1px solid var(--border);
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -543,7 +545,7 @@ button:active, .btn:active {
 }
 
 .topnav .nav-links a {
-    color: rgba(255, 255, 255, 0.7);
+    color: var(--text-muted);
     font-size: 0.88rem;
     font-weight: 500;
     text-decoration: none;
@@ -553,13 +555,13 @@ button:active, .btn:active {
 }
 
 .topnav .nav-links a:hover {
-    color: #fff;
-    background: rgba(255, 255, 255, 0.08);
+    color: var(--primary);
+    background: var(--bg);
 }
 
 .topnav .nav-links a.active {
     color: var(--accent);
-    background: rgba(255, 255, 255, 0.15);
+    background: var(--bg);
     font-weight: 600;
 }
 
@@ -571,13 +573,13 @@ button:active, .btn:active {
 
 .topnav .nav-right .user-name {
     font-size: 0.82rem;
-    color: rgba(255,255,255,0.65);
+    color: var(--text-muted);
 }
 
 .topnav .logout-btn {
-    background: rgba(255,255,255,0.15);
-    color: #fff;
-    border: none;
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--border);
     padding: 5px 14px;
     border-radius: var(--radius);
     font-size: 0.8rem;
@@ -585,7 +587,7 @@ button:active, .btn:active {
 }
 
 .topnav .logout-btn:hover {
-    background: rgba(255,255,255,0.25);
+    background: var(--border);
 }
 
 /* ---------- Employee Dashboard ---------- */
