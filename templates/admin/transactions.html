@@ -814,25 +814,25 @@ window.addEventListener('DOMContentLoaded', function() {
                 eff_pct = Math.round((t.employee_commission / t.net_commission) * 1000) / 10;
             }
             
-            var row = [
+                        var row = [
                 t.date,
                 t.property_id,
                 t.property_name,
-                t.basic_price,
-                t.cityscope_commission,
+                t.basic_price ? t.basic_price.toLocaleString('en-IN') : (t.basic_price===0?0:t.basic_price),
+                t.cityscope_commission ? t.cityscope_commission.toLocaleString('en-IN') : (t.cityscope_commission===0?0:t.cityscope_commission),
                 brk_pct + "%",
                 t.employee_name,
                 t.gst_applied,
-                t.net_commission,
-                t.employee_commission,
+                t.net_commission ? t.net_commission.toLocaleString('en-IN') : (t.net_commission===0?0:t.net_commission),
+                t.employee_commission ? t.employee_commission.toLocaleString('en-IN') : (t.employee_commission===0?0:t.employee_commission),
                 eff_pct + "%",
-                t.buyer_commission_amount,
-                t.buyer_commission_received,
-                buyer_pending,
+                t.buyer_commission_amount ? t.buyer_commission_amount.toLocaleString('en-IN') : (t.buyer_commission_amount===0?0:t.buyer_commission_amount),
+                t.buyer_commission_received ? t.buyer_commission_received.toLocaleString('en-IN') : (t.buyer_commission_received===0?0:t.buyer_commission_received),
+                buyer_pending ? buyer_pending.toLocaleString('en-IN') : (buyer_pending===0?0:buyer_pending),
                 t.buyer_commission_date,
-                t.seller_commission_amount,
-                t.seller_commission_received,
-                seller_pending,
+                t.seller_commission_amount ? t.seller_commission_amount.toLocaleString('en-IN') : (t.seller_commission_amount===0?0:t.seller_commission_amount),
+                t.seller_commission_received ? t.seller_commission_received.toLocaleString('en-IN') : (t.seller_commission_received===0?0:t.seller_commission_received),
+                seller_pending ? seller_pending.toLocaleString('en-IN') : (seller_pending===0?0:seller_pending),
                 t.seller_commission_date,
                 t.payment_status
             ];
