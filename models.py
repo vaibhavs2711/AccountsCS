@@ -464,6 +464,20 @@ def get_pending_brokerage_details():
         db.close()
 
 
+def get_collected_brokerage_for_month(month: int, year: int) -> float:
+    """Calculate the total brokerage collected from buyers and sellers for a given month."""
+    db = get_db()
+    try:
+        with db.cursor() as cur:
+            cur.execute(
+                "SELECT SUM(amount) as total FROM commission_payments WHERE MONTH(payment_date) = %s AND YEAR(payment_date) = %s",
+                (month, year)
+            )
+            row = cur.fetchone()
+            return float(row['total'] or 0)
+    finally:
+        db.close()
+
 
 def mark_transaction_paid(transaction_id: int):
     """Set payment_status to DONE, mark received amounts as fully paid, and recalculate commission."""
