@@ -103,7 +103,7 @@ def index():
 
 
 @app.route('/login', methods=['GET', 'POST'])
-@limiter.limit("5 per minute; 20 per hour")
+@limiter.limit("20 per minute; 200 per hour")
 def login():
     """Login page - GET renders form, POST authenticates."""
     user = get_current_user()
