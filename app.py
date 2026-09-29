@@ -151,6 +151,9 @@ def admin_dashboard():
     user = get_current_user()
     now = datetime.now()
     month, year = now.month, now.year
+    from commission import get_quarter, get_fy_year
+    quarter = get_quarter(month)
+    fy_year = get_fy_year(month, year)
 
     # Stats
     employee_count = models.get_employee_count()
@@ -158,6 +161,7 @@ def admin_dashboard():
     pending_brokerage_data = models.get_pending_brokerage_details()
     pending_brokerage = format_inr(pending_brokerage_data['total_pending'])
     collected_brokerage = format_inr(models.get_collected_brokerage_for_month(month, year))
+    collected_brokerage_qtr = format_inr(models.get_collected_brokerage_for_quarter(quarter, fy_year))
     pending_leaves = models.get_pending_leave_count()
 
     # Leaderboard: each employee's business this month vs target
@@ -193,6 +197,7 @@ def admin_dashboard():
         pending_brokerage=pending_brokerage,
         pending_brokerage_data=pending_brokerage_data,
         collected_brokerage=collected_brokerage,
+        collected_brokerage_qtr=collected_brokerage_qtr,
         pending_commission=pending_brokerage,
         pending_leaves=pending_leaves,
         leaderboard=leaderboard,

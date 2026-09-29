@@ -125,8 +125,11 @@
         </div>
     </div>
     <div class="stat-card">
-        <div class="stat-value success">{{ collected_brokerage }}</div>
-        <div class="stat-label">Collected Brokerage (This Month)</div>
+        <div style="display: flex; flex-direction: column; gap: 4px;">
+            <div class="stat-value success" style="font-size: 1.4rem;">{{ collected_brokerage }} <span style="font-size: 0.9rem; color: #64748b; font-weight: 500;">/ mo</span></div>
+            <div class="stat-value success" style="font-size: 1.1rem; opacity: 0.85;">{{ collected_brokerage_qtr }} <span style="font-size: 0.8rem; color: #64748b; font-weight: 500;">/ qtr</span></div>
+        </div>
+        <div class="stat-label" style="margin-top: 8px;">Collected Brokerage</div>
     </div>
 </div>
 

@@ -479,6 +479,30 @@ def get_collected_brokerage_for_month(month: int, year: int) -> float:
         db.close()
 
 
+def get_collected_brokerage_for_quarter(quarter: int, fy_year: int) -> float:
+    """Calculate the total brokerage collected from buyers and sellers for a given FY quarter."""
+    from commission import get_quarter_months
+    months = get_quarter_months(quarter)
+    if not months:
+        return 0.0
+        
+    db = get_db()
+    try:
+        with db.cursor() as cur:
+            # Quarter 4 is Jan-Mar of the next calendar year
+            year = fy_year + 1 if quarter == 4 else fy_year
+            format_strings = ','.join(['%s'] * len(months))
+            
+            cur.execute(
+                f"SELECT SUM(amount) as total FROM commission_payments WHERE MONTH(payment_date) IN ({format_strings}) AND YEAR(payment_date) = %s",
+                tuple(months) + (year,)
+            )
+            row = cur.fetchone()
+            return float(row['total'] or 0)
+    finally:
+        db.close()
+
+
 def mark_transaction_paid(transaction_id: int):
     """Set payment_status to DONE, mark received amounts as fully paid, and recalculate commission."""
     txn = get_transaction_by_id(transaction_id)
