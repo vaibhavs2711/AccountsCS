@@ -399,7 +399,9 @@
             {% for lr in leaves %}
             <div class="leave-item" style="border: 1px solid var(--border); border-radius: 8px; padding: 16px; background: #fff;">
                 <div class="leave-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                    <span class="leave-date" style="font-weight: 600; color: var(--text);">{{ lr.date_of_leave.strftime('%d %b %Y') }}</span>
+                    <span class="leave-date" style="font-weight: 600; color: var(--primary); font-size: 0.92rem;">
+                        📅 {{ lr.date_of_leave.strftime('%A, %d %b %Y') }}
+                    </span>
                     {% if lr.status == 'PENDING' %}
                         <span class="badge-pending" style="background:#fef08a; color:#854d0e; padding:2px 8px; border-radius:12px; font-size:0.7rem; font-weight:600;">PENDING</span>
                     {% elif lr.status == 'APPROVED' %}
@@ -408,8 +410,15 @@
                         <span class="badge-rejected" style="background:#fee2e2; color:#991b1b; padding:2px 8px; border-radius:12px; font-size:0.7rem; font-weight:600;">REJECTED</span>
                     {% endif %}
                 </div>
+                <div style="font-size: 0.8rem; color: #475569; margin-bottom: 6px; display: flex; align-items: center; gap: 6px;">
+                    <span style="color: var(--text-muted);">📝 Applied on:</span>
+                    <strong>{{ lr.applied_on.strftime('%A, %d %b %Y') if lr.applied_on else '—' }}</strong>
+                    {% if lr.applied_on %}
+                    <span style="font-size: 0.72rem; color: var(--text-muted);">({{ lr.applied_on.strftime('%I:%M %p') }})</span>
+                    {% endif %}
+                </div>
                 {% if lr.reason %}
-                <div class="leave-reason" style="font-size: 0.85rem; color: var(--text-muted);">{{ lr.reason }}</div>
+                <div class="leave-reason" style="font-size: 0.85rem; color: var(--text-muted); padding-top: 6px; border-top: 1px dashed #e2e8f0;">{{ lr.reason }}</div>
                 {% endif %}
             </div>
             {% endfor %}

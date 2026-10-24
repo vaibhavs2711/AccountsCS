@@ -262,8 +262,8 @@ def update_transaction(transaction_id: int, data: dict):
         db.close()
 
 
-def get_all_transactions(sort='added'):
-    """Return all transactions with employee name, ordered dynamically."""
+def get_all_transactions(sort='added', period_type='all', month=None, year=None, quarter=None, fy_year=None, employee_id=None):
+    """Return all transactions with employee name, filtered and ordered dynamically."""
     db = get_db()
     
     allowed_sorts = {
@@ -272,6 +272,39 @@ def get_all_transactions(sort='added'):
         'updated': 't.updated_at DESC'
     }
     order_clause = allowed_sorts.get(sort, 't.created_at DESC')
+    
+    where_clauses = []
+    params = []
+
+    if employee_id:
+        where_clauses.append("t.employee_id = %s")
+        params.append(int(employee_id))
+
+    # Determine period filtering
+    if period_type == 'month' and month:
+        cal_year = year
+        if not cal_year and fy_year:
+            cal_year = int(fy_year) if int(month) >= 4 else int(fy_year) + 1
+        if cal_year:
+            where_clauses.append("t.month = %s AND t.year = %s")
+            params.extend([int(month), int(cal_year)])
+        else:
+            where_clauses.append("t.month = %s")
+            params.append(int(month))
+    elif period_type == 'quarter' and quarter:
+        q = int(quarter)
+        if fy_year:
+            cal_year = int(fy_year) + 1 if q == 4 else int(fy_year)
+            where_clauses.append("t.quarter = %s AND t.year = %s")
+            params.extend([q, cal_year])
+        else:
+            where_clauses.append("t.quarter = %s")
+            params.append(q)
+    elif period_type == 'fy' and fy_year:
+        where_clauses.append("((t.month >= 4 AND t.year = %s) OR (t.month <= 3 AND t.year = %s))")
+        params.extend([int(fy_year), int(fy_year) + 1])
+
+    where_sql = ("WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
         
     try:
         with db.cursor() as cur:
@@ -279,11 +312,14 @@ def get_all_transactions(sort='added'):
                 f"""SELECT t.*, u.name AS employee_name, u.team_type
                    FROM transactions t
                    JOIN users u ON t.employee_id = u.id
-                   ORDER BY {order_clause}"""
+                   {where_sql}
+                   ORDER BY {order_clause}""",
+                tuple(params)
             )
             return cur.fetchall()
     finally:
         db.close()
+
 
 
 def get_transactions_by_employee(employee_id: int):
@@ -607,33 +643,70 @@ def create_leave_request(employee_id: int, date_of_leave: str, reason: str, bloc
         db.close()
 
 
-def get_all_leave_requests():
-    """Return all leave requests with employee name, ordered by applied_on desc."""
+def get_all_leave_requests(month=None, year=None, employee_id=None, status=None, search=None):
+    """Return all leave requests with employee name, filtered and ordered."""
     db = get_db()
+    where_clauses = []
+    params = []
+
+    if employee_id:
+        where_clauses.append("lr.employee_id = %s")
+        params.append(int(employee_id))
+
+    if month and 1 <= int(month) <= 12:
+        where_clauses.append("MONTH(lr.date_of_leave) = %s")
+        params.append(int(month))
+
+    if year:
+        where_clauses.append("YEAR(lr.date_of_leave) = %s")
+        params.append(int(year))
+
+    if status and status != 'ALL':
+        where_clauses.append("lr.status = %s")
+        params.append(status)
+
+    if search:
+        where_clauses.append("(u.name LIKE %s OR lr.reason LIKE %s)")
+        search_pattern = f"%{search}%"
+        params.extend([search_pattern, search_pattern])
+
+    where_sql = ("WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
+
     try:
         with db.cursor() as cur:
             cur.execute(
-                """SELECT lr.*, u.name AS employee_name
+                f"""SELECT lr.*, u.name AS employee_name
                    FROM leave_requests lr
                    JOIN users u ON lr.employee_id = u.id
-                   ORDER BY lr.applied_on DESC"""
+                   {where_sql}
+                   ORDER BY lr.date_of_leave DESC, lr.applied_on DESC""",
+                tuple(params)
             )
             return cur.fetchall()
     finally:
         db.close()
 
 
-def get_pending_leave_requests():
+def get_pending_leave_requests(employee_id=None):
     """Return leave requests with PENDING status."""
     db = get_db()
+    where_clauses = ["lr.status = 'PENDING'"]
+    params = []
+
+    if employee_id:
+        where_clauses.append("lr.employee_id = %s")
+        params.append(int(employee_id))
+
+    where_sql = "WHERE " + " AND ".join(where_clauses)
     try:
         with db.cursor() as cur:
             cur.execute(
-                """SELECT lr.*, u.name AS employee_name
+                f"""SELECT lr.*, u.name AS employee_name
                    FROM leave_requests lr
                    JOIN users u ON lr.employee_id = u.id
-                   WHERE lr.status = 'PENDING'
-                   ORDER BY lr.date_of_leave ASC"""
+                   {where_sql}
+                   ORDER BY lr.date_of_leave ASC""",
+                tuple(params)
             )
             return cur.fetchall()
     finally:

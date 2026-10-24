@@ -3,25 +3,222 @@
 {% block title %}Leave Requests — Cityscope Admin{% endblock %}
 
 {% block content %}
+<style>
+    .leave-filter-card {
+        margin-bottom: 20px;
+        padding: 16px 20px;
+        background: #ffffff;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+    .filter-chip-select {
+        font-size: 0.82rem;
+        font-weight: 600;
+        padding: 6px 12px;
+        height: 38px;
+        border-radius: 8px;
+        background-color: #fff;
+        border: 1px solid #cbd5e1;
+        cursor: pointer;
+    }
+    .btn-quick-filter {
+        border: 1px solid #e2e8f0;
+        background: #f8fafc;
+        padding: 5px 12px;
+        font-size: 0.78rem;
+        font-weight: 600;
+        color: #475569;
+        border-radius: 6px;
+        cursor: pointer;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        transition: all 0.2s;
+    }
+    .btn-quick-filter:hover {
+        background: #f1f5f9;
+        color: var(--primary);
+    }
+    .btn-quick-filter.active {
+        background: #eff6ff;
+        color: var(--accent);
+        border-color: #bfdbfe;
+    }
+    .leave-stat-pill {
+        background: #f8fafc;
+        padding: 10px 14px;
+        border-radius: 10px;
+        border: 1px solid #e2e8f0;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+    }
+</style>
+
 <div class="page-header">
-    <h2>Leave Requests</h2>
-    {% if pending_leaves|length > 0 %}
-    <span class="page-meta">
-        <span class="badge-pending">{{ pending_leaves|length }} pending</span>
-    </span>
-    {% endif %}
+    <div>
+        <h2 style="color:var(--text);">Leave Requests</h2>
+        <div class="page-meta" style="margin-top:4px;">Manage employee leave applications and track monthly leave counts.</div>
+    </div>
+    <div class="d-flex gap-2 no-pdf align-items-center">
+        {% if pending_leaves|length > 0 %}
+        <span class="badge-pending" style="font-size: 0.8rem; padding: 6px 14px; border-radius: 20px;">
+            ⏳ {{ pending_leaves|length }} Pending Review
+        </span>
+        {% endif %}
+        <span style="font-size: 0.82rem; font-weight: 600; background: #f0fdf4; color: #166534; padding: 6px 14px; border-radius: 20px; border: 1px solid #bbf7d0;">
+            📅 {{ current_month_name }} Leaves Taken: <strong>{{ this_month_taken_count }}</strong>
+        </span>
+    </div>
 </div>
 
 {% if success %}
 <div class="alert-success">{{ success }}</div>
 {% endif %}
 
+<!-- Leave Search & Period Filter Card -->
+<div class="card no-pdf leave-filter-card">
+    <form method="GET" action="{{ url_for('admin_leaves') }}" id="leaveFilterForm" style="margin: 0;">
+        <!-- Top Row: Search Input & Quick Shortcuts -->
+        <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid #f1f5f9;">
+            <div style="position: relative; flex: 1; min-width: 260px; max-width: 450px;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); pointer-events: none;">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                </svg>
+                <input type="text" name="search" id="leaveSearchInput" value="{{ search or '' }}"
+                       placeholder="Search employee, date, or reason..."
+                       class="form-control" style="border-radius: 8px; font-size: 0.85rem; padding-left: 36px; padding-block: 8px;"
+                       onkeyup="filterLeavesTable()" autocomplete="off">
+            </div>
+
+            <!-- Quick Filter Presets -->
+            <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                <span style="font-size: 0.78rem; font-weight: 600; color: var(--text-muted); margin-right: 4px;">Quick:</span>
+                <a href="{{ url_for('admin_leaves') }}" class="btn-quick-filter {% if not sel_m and not sel_emp and sel_status == 'ALL' and not search %}active{% endif %}">
+                    All Leaves
+                </a>
+                <a href="{{ url_for('admin_leaves', month=current_month_num, year=current_year) }}" class="btn-quick-filter {% if sel_m == current_month_num and sel_y == current_year %}active{% endif %}">
+                    📅 This Month ({{ current_month_name }})
+                </a>
+                {% if sel_m or sel_y or sel_emp or (sel_status and sel_status != 'ALL') or search %}
+                <a href="{{ url_for('admin_leaves') }}" style="font-size: 0.78rem; font-weight: 600; color: var(--accent); text-decoration: none; padding: 5px 10px; background: #eff6ff; border-radius: 6px; border: 1px solid #bfdbfe; margin-left: 6px;">
+                    ↺ Reset Filters
+                </a>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Filter Controls Row -->
+        <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
+            <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                <!-- Month Filter -->
+                <div style="display: flex; align-items: center; gap: 6px;">
+                    <label style="font-size: 0.8rem; font-weight: 600; color: var(--text-muted); margin: 0; white-space: nowrap;">Month:</label>
+                    <select name="month" id="filter_month" class="form-select filter-chip-select" onchange="this.form.submit()" style="min-width: 140px;">
+                        <option value="">All Months</option>
+                        <option value="1" {% if sel_m == 1 %}selected{% endif %}>January</option>
+                        <option value="2" {% if sel_m == 2 %}selected{% endif %}>February</option>
+                        <option value="3" {% if sel_m == 3 %}selected{% endif %}>March</option>
+                        <option value="4" {% if sel_m == 4 %}selected{% endif %}>April</option>
+                        <option value="5" {% if sel_m == 5 %}selected{% endif %}>May</option>
+                        <option value="6" {% if sel_m == 6 %}selected{% endif %}>June</option>
+                        <option value="7" {% if sel_m == 7 %}selected{% endif %}>July</option>
+                        <option value="8" {% if sel_m == 8 %}selected{% endif %}>August</option>
+                        <option value="9" {% if sel_m == 9 %}selected{% endif %}>September</option>
+                        <option value="10" {% if sel_m == 10 %}selected{% endif %}>October</option>
+                        <option value="11" {% if sel_m == 11 %}selected{% endif %}>November</option>
+                        <option value="12" {% if sel_m == 12 %}selected{% endif %}>December</option>
+                    </select>
+                </div>
+
+                <!-- Year Filter -->
+                <div style="display: flex; align-items: center; gap: 6px;">
+                    <label style="font-size: 0.8rem; font-weight: 600; color: var(--text-muted); margin: 0; white-space: nowrap;">Year:</label>
+                    <select name="year" id="filter_year" class="form-select filter-chip-select" onchange="this.form.submit()" style="min-width: 100px;">
+                        {% for y in available_years %}
+                        <option value="{{ y }}" {% if sel_y == y %}selected{% endif %}>{{ y }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Employee Filter -->
+                <div style="display: flex; align-items: center; gap: 6px;">
+                    <label style="font-size: 0.8rem; font-weight: 600; color: var(--text-muted); margin: 0; white-space: nowrap;">Employee:</label>
+                    <select name="employee_id" id="filter_employee" class="form-select filter-chip-select" onchange="this.form.submit()" style="min-width: 160px;">
+                        <option value="">All Employees</option>
+                        {% for emp in employees %}
+                        <option value="{{ emp.id }}" {% if sel_emp == emp.id %}selected{% endif %}>{{ emp.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Status Filter -->
+                <div style="display: flex; align-items: center; gap: 6px;">
+                    <label style="font-size: 0.8rem; font-weight: 600; color: var(--text-muted); margin: 0; white-space: nowrap;">Status:</label>
+                    <select name="status" id="filter_status" class="form-select filter-chip-select" onchange="this.form.submit()" style="min-width: 130px;">
+                        <option value="ALL" {% if sel_status == 'ALL' or not sel_status %}selected{% endif %}>All Statuses</option>
+                        <option value="APPROVED" {% if sel_status == 'APPROVED' %}selected{% endif %}>Approved</option>
+                        <option value="PENDING" {% if sel_status == 'PENDING' %}selected{% endif %}>Pending</option>
+                        <option value="REJECTED" {% if sel_status == 'REJECTED' %}selected{% endif %}>Rejected</option>
+                    </select>
+                </div>
+            </div>
+
+            <div style="font-size: 0.85rem; color: var(--text-muted);">
+                Showing: <strong style="color: var(--primary);">{{ period_label }}</strong>
+                {% if selected_employee %}
+                • Employee: <strong style="color: var(--accent);">{{ selected_employee.name }}</strong>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Monthly Leave Count Summary Cards -->
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-top: 14px; padding-top: 14px; border-top: 1px solid #f1f5f9;">
+            <div class="leave-stat-pill" style="border-left: 4px solid #16a34a; background: #f0fdf4;">
+                <div style="font-size: 0.72rem; color: #166534; text-transform: uppercase; font-weight: 700; letter-spacing: 0.02em;">Leaves Taken (Approved)</div>
+                <div style="font-size: 1.4rem; font-weight: 800; color: #15803d; margin-top: 2px;">{{ filter_approved_count }}</div>
+                <div style="font-size: 0.72rem; color: #166534; opacity: 0.85;">in {{ period_label }}</div>
+            </div>
+
+            <div class="leave-stat-pill" style="border-left: 4px solid #d97706; background: #fffbeb;">
+                <div style="font-size: 0.72rem; color: #92400e; text-transform: uppercase; font-weight: 700; letter-spacing: 0.02em;">Pending Approvals</div>
+                <div style="font-size: 1.4rem; font-weight: 800; color: #b45309; margin-top: 2px;">{{ filter_pending_count }}</div>
+                <div style="font-size: 0.72rem; color: #92400e; opacity: 0.85;">awaiting decision</div>
+            </div>
+
+            <div class="leave-stat-pill" style="border-left: 4px solid #ef4444; background: #fef2f2;">
+                <div style="font-size: 0.72rem; color: #991b1b; text-transform: uppercase; font-weight: 700; letter-spacing: 0.02em;">Rejected Requests</div>
+                <div style="font-size: 1.4rem; font-weight: 800; color: #b91c1c; margin-top: 2px;">{{ filter_rejected_count }}</div>
+                <div style="font-size: 0.72rem; color: #991b1b; opacity: 0.85;">declined</div>
+            </div>
+
+            <div class="leave-stat-pill" style="border-left: 4px solid #2563eb;">
+                <div style="font-size: 0.72rem; color: #1e40af; text-transform: uppercase; font-weight: 700; letter-spacing: 0.02em;">Total Applications</div>
+                <div style="font-size: 1.4rem; font-weight: 800; color: #1d4ed8; margin-top: 2px;">{{ all_leaves|length }}</div>
+                <div style="font-size: 0.72rem; color: var(--text-muted);">submitted</div>
+            </div>
+
+            <div class="leave-stat-pill" style="border-left: 4px solid #7c3aed;">
+                <div style="font-size: 0.72rem; color: #5b21b6; text-transform: uppercase; font-weight: 700; letter-spacing: 0.02em;">Employees on Leave</div>
+                <div style="font-size: 1.4rem; font-weight: 800; color: #6d28d9; margin-top: 2px;">{{ filter_unique_employees }}</div>
+                <div style="font-size: 0.72rem; color: var(--text-muted);">different staff members</div>
+            </div>
+        </div>
+    </form>
+</div>
+
 <!-- Pending Approvals -->
 {% if pending_leaves|length > 0 %}
-<div class="card">
-    <div class="card-title">⏳ Pending Approvals</div>
+<div class="card" id="pendingLeavesCard">
+    <div class="card-title" style="display:flex; justify-content:space-between; align-items:center;">
+        <span>⏳ Pending Approvals ({{ pending_leaves|length }})</span>
+        <span style="font-size:0.75rem; color:var(--text-muted); font-weight:500;">Needs admin review</span>
+    </div>
     <div class="table-responsive table-responsive-stack">
-        <table class="table mb-0">
+        <table class="table mb-0" id="pendingLeavesTable">
             <thead>
                 <tr>
                     <th>Employee</th>
@@ -35,8 +232,15 @@
                 {% for lr in pending_leaves %}
                 <tr>
                     <td data-label="Employee"><strong>{{ lr.employee_name }}</strong></td>
-                    <td data-label="Date of Leave">{{ lr.date_of_leave.strftime('%d %b %Y') }}</td>
-                    <td data-label="Applied On"><span class="text-muted-custom">{{ lr.applied_on.strftime('%d %b %Y, %I:%M %p') }}</span></td>
+                    <td data-label="Date of Leave" style="white-space: nowrap;">
+                        <strong style="color: var(--primary);">{{ lr.date_of_leave.strftime('%A') }}</strong>, {{ lr.date_of_leave.strftime('%d %b %Y') }}
+                    </td>
+                    <td data-label="Applied On" style="white-space: nowrap;">
+                        <div><strong style="color: var(--text);">{{ lr.applied_on.strftime('%A') if lr.applied_on else '—' }}</strong>, {{ lr.applied_on.strftime('%d %b %Y') if lr.applied_on else '' }}</div>
+                        {% if lr.applied_on %}
+                        <span style="font-size: 0.74rem; color: var(--text-muted);">{{ lr.applied_on.strftime('%I:%M %p') }}</span>
+                        {% endif %}
+                    </td>
                     <td data-label="Reason">{{ lr.reason if lr.reason else '—' }}</td>
                     <td data-label="Action">
                         <div class="d-flex gap-2">
@@ -60,10 +264,19 @@
 
 <!-- All Leave Requests -->
 <div class="card">
-    <div class="card-title">All Leave Requests</div>
+    <div class="card-title card-header-responsive" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+            <span>All Leave Requests</span>
+            <span class="badge" id="leaveCountBadge" style="background:#e0f2fe; color:#0369a1; font-weight:600; padding:3px 10px; border-radius:20px; font-size:0.75rem;">
+                {{ all_leaves|length }} Requests
+            </span>
+            <span style="font-size: 0.85rem; color: var(--text-muted); font-weight: 500;">— {{ period_label }}</span>
+        </div>
+    </div>
+
     {% if all_leaves|length > 0 %}
     <div class="table-responsive table-responsive-stack">
-        <table class="table mb-0">
+        <table class="table mb-0" id="allLeavesTable">
             <thead>
                 <tr>
                     <th>Employee</th>
@@ -77,9 +290,18 @@
             <tbody>
                 {% for lr in all_leaves %}
                 <tr>
-                    <td data-label="Employee"><strong>{{ lr.employee_name }}</strong></td>
-                    <td data-label="Date of Leave">{{ lr.date_of_leave.strftime('%d %b %Y') }}</td>
-                    <td data-label="Applied On"><span class="text-muted-custom">{{ lr.applied_on.strftime('%d %b %Y, %I:%M %p') }}</span></td>
+                    <td data-label="Employee">
+                        <strong>{{ lr.employee_name }}</strong>
+                    </td>
+                    <td data-label="Date of Leave" style="white-space: nowrap;">
+                        <strong style="color: var(--primary);">{{ lr.date_of_leave.strftime('%A') }}</strong>, {{ lr.date_of_leave.strftime('%d %b %Y') }}
+                    </td>
+                    <td data-label="Applied On" style="white-space: nowrap;">
+                        <div><strong style="color: var(--text);">{{ lr.applied_on.strftime('%A') if lr.applied_on else '—' }}</strong>, {{ lr.applied_on.strftime('%d %b %Y') if lr.applied_on else '' }}</div>
+                        {% if lr.applied_on %}
+                        <span style="font-size: 0.74rem; color: var(--text-muted);">{{ lr.applied_on.strftime('%I:%M %p') }}</span>
+                        {% endif %}
+                    </td>
                     <td data-label="Reason">{{ lr.reason if lr.reason else '—' }}</td>
                     <td data-label="Status">
                         {% if lr.status == 'PENDING' %}
@@ -102,7 +324,60 @@
         </table>
     </div>
     {% else %}
-    <p class="text-muted-custom" style="font-size:0.85rem;">No leave requests yet.</p>
+    <div style="text-align: center; padding: 32px 16px;">
+        <div style="font-size: 2rem; margin-bottom: 8px;">🏝️</div>
+        <div style="font-weight: 600; color: var(--text); font-size: 0.95rem;">No leave requests found</div>
+        <p class="text-muted-custom" style="font-size:0.85rem; margin-top: 4px;">There are no leave requests matching the selected month or employee filter.</p>
+        {% if sel_m or sel_emp or sel_status != 'ALL' or search %}
+        <a href="{{ url_for('admin_leaves') }}" class="btn btn-secondary" style="display: inline-block; margin-top: 10px; padding: 6px 14px; font-size: 0.8rem; border-radius: 6px;">View All Leaves</a>
+        {% endif %}
+    </div>
     {% endif %}
 </div>
+
+<script>
+function filterLeavesTable() {
+    var input = document.getElementById("leaveSearchInput");
+    if (!input) return;
+    var filter = input.value.toLowerCase().trim();
+
+    // 1. Filter Pending Leaves Table
+    var pTable = document.getElementById("pendingLeavesTable");
+    if (pTable) {
+        var pRows = pTable.getElementsByTagName("tbody")[0].getElementsByTagName("tr");
+        for (var i = 0; i < pRows.length; i++) {
+            var text = pRows[i].textContent || pRows[i].innerText;
+            pRows[i].style.display = (!filter || text.toLowerCase().indexOf(filter) > -1) ? "" : "none";
+        }
+    }
+
+    // 2. Filter All Leaves Table
+    var aTable = document.getElementById("allLeavesTable");
+    if (aTable) {
+        var aRows = aTable.getElementsByTagName("tbody")[0].getElementsByTagName("tr");
+        var visibleCount = 0;
+        for (var j = 0; j < aRows.length; j++) {
+            var rowText = aRows[j].textContent || aRows[j].innerText;
+            if (!filter || rowText.toLowerCase().indexOf(filter) > -1) {
+                aRows[j].style.display = "";
+                visibleCount++;
+            } else {
+                aRows[j].style.display = "none";
+            }
+        }
+        var countEl = document.getElementById("leaveCountBadge");
+        if (countEl) {
+            countEl.textContent = visibleCount + (visibleCount === 1 ? " Request" : " Requests");
+        }
+    }
+}
+
+// Prefill search from URL parameter if present
+window.addEventListener('DOMContentLoaded', function() {
+    var searchInput = document.getElementById("leaveSearchInput");
+    if (searchInput && searchInput.value.trim() !== "") {
+        filterLeavesTable();
+    }
+});
+</script>
 {% endblock %}

@@ -5,7 +5,7 @@ Main Flask Application - All routes and configuration.
 
 from datetime import datetime, timedelta, time
 from flask import (
-    Flask, render_template, request, redirect, url_for, session, flash, jsonify
+    Flask, render_template, request, redirect, url_for, session, flash, jsonify, Response
 )
 
 import config
@@ -42,6 +42,10 @@ app.config['WTF_CSRF_SSL_STRICT'] = config.WTF_CSRF_SSL_STRICT
 csrf = CSRFProtect(app)
 
 # Rate Limiting
+# NOTE: storage_uri="memory://" is per-process and non-persistent.
+# For multi-worker deployments (Gunicorn), switch to Redis:
+#   storage_uri="redis://redis:6379"
+# and add 'redis' + 'flask-limiter[redis]' to requirements.txt.
 limiter = Limiter(
     get_remote_address,
     app=app,
@@ -76,6 +80,23 @@ def handle_csrf_error(e):
     return render_template('login.html', error='CSRF token missing or invalid. Please refresh and try again.'), 400
 
 
+# Rate Limit Exceeded Handler
+@app.errorhandler(429)
+def handle_rate_limit_error(e):
+    """Return a user-friendly response when a rate limit is exceeded."""
+    # For AJAX / JSON requests return JSON
+    if request.accept_mimetypes.accept_json and not request.accept_mimetypes.accept_html:
+        return jsonify({
+            'success': False,
+            'error': 'Too many requests. Please wait a moment and try again.'
+        }), 429
+    # For HTML requests, re-render the login page with an error message
+    return render_template(
+        'login.html',
+        error='Too many requests. Please wait a moment and try again.'
+    ), 429
+
+
 # ---------------------------------------------------------------------------
 # Jinja2 globals / filters - available in every template
 # ---------------------------------------------------------------------------
@@ -103,7 +124,7 @@ def index():
 
 
 @app.route('/login', methods=['GET', 'POST'])
-@limiter.limit("20 per minute; 200 per hour")
+@limiter.limit("5 per minute; 20 per hour")  # Tightened: was 20/min & 200/hr
 def login():
     """Login page - GET renders form, POST authenticates."""
     user = get_current_user()
@@ -298,16 +319,88 @@ def admin_add_employee():
 @app.route('/admin/transactions')
 @admin_required
 def admin_transactions():
-    """List transactions + add form."""
+    """List transactions + add form with month/quarter/FY filtering."""
     user = get_current_user()
+    now = datetime.now()
+    current_fy = get_fy_year(now.month, now.year)
     
     sort_by = request.args.get('sort', 'added')
     
+    period_type = request.args.get('period_type', '')
+    sel_fy = request.args.get('fy_year', type=int)
+    sel_q = request.args.get('quarter', type=int)
+    sel_m = request.args.get('month', type=int)
+    sel_emp = request.args.get('employee_id', type=int)
+
+    # Smart determination of period_type
+    if not period_type:
+        if sel_m:
+            period_type = 'month'
+        elif sel_q:
+            period_type = 'quarter'
+        elif sel_fy is not None:
+            period_type = 'fy'
+        else:
+            period_type = 'all'
+
+    fy_year = sel_fy if sel_fy is not None else current_fy
+    quarter = sel_q if sel_q and 1 <= sel_q <= 4 else get_quarter(now.month)
+    month = sel_m if sel_m and 1 <= sel_m <= 12 else now.month
+
+    # Generate available financial years for dropdown
+    available_fys = []
+    for fy in range(current_fy - 3, current_fy + 2):
+        available_fys.append({
+            'year': fy,
+            'label': f"FY {fy}-{str(fy + 1)[-2:]}"
+        })
+
+    # Calendar year for month filter
+    cal_year = fy_year if month >= 4 else fy_year + 1
+
+    # Descriptive period label for UI and export filename
+    fy_short = f"FY {fy_year}-{str(fy_year + 1)[-2:]}"
+    if period_type == 'month':
+        period_label = f"{MONTH_NAMES[month]} {cal_year}"
+    elif period_type == 'quarter':
+        quarter_names = {1: 'Q1 (Apr - Jun)', 2: 'Q2 (Jul - Sep)', 3: 'Q3 (Oct - Dec)', 4: 'Q4 (Jan - Mar)'}
+        period_label = f"{quarter_names.get(quarter, f'Q{quarter}')} {fy_short}"
+    elif period_type == 'fy':
+        period_label = f"Full {fy_short}"
+    else:
+        period_label = "All Time"
+
     employees = models.get_all_employees()
-    transactions = models.get_all_transactions(sort=sort_by)
+    selected_employee = next((e for e in employees if e['id'] == sel_emp), None) if sel_emp else None
+
+    # Fetch transactions filtered
+    transactions = models.get_all_transactions(
+        sort=sort_by,
+        period_type=period_type,
+        month=month,
+        year=cal_year,
+        quarter=quarter,
+        fy_year=fy_year,
+        employee_id=sel_emp
+    )
+
     payments = models.get_transaction_payments_dict()
     import json
     payments_json = json.dumps(payments)
+
+    summary_stats = {
+        'count': len(transactions),
+        'basic_price': sum(t.get('basic_price') or 0 for t in transactions),
+        'brokerage': sum(t.get('cityscope_commission') or 0 for t in transactions),
+        'net_brokerage': sum(t.get('net_commission') or 0 for t in transactions),
+        'employee_commission': sum(t.get('employee_commission') or 0 for t in transactions),
+        'collected': sum((t.get('buyer_commission_received') or 0) + (t.get('seller_commission_received') or 0) for t in transactions),
+        'pending': sum(
+            max(0, (t.get('buyer_commission_amount') or 0) - (t.get('buyer_commission_received') or 0)) +
+            max(0, (t.get('seller_commission_amount') or 0) - (t.get('seller_commission_received') or 0))
+            for t in transactions
+        ),
+    }
 
     success = session.pop('txn_success', None)
     error = session.pop('txn_error', None)
@@ -321,6 +414,131 @@ def admin_transactions():
         error=error,
         current_sort=sort_by,
         payments_json=payments_json,
+        period_type=period_type,
+        fy_year=fy_year,
+        quarter=quarter,
+        month=month,
+        cal_year=cal_year,
+        available_fys=available_fys,
+        period_label=period_label,
+        sel_emp=sel_emp,
+        selected_employee=selected_employee,
+        summary_stats=summary_stats,
+    )
+
+
+@app.route('/admin/transactions/export')
+@admin_required
+def admin_export_transactions():
+    """Export filtered transactions to CSV (Excel compatible)."""
+    import csv
+    import io
+
+    now = datetime.now()
+    current_fy = get_fy_year(now.month, now.year)
+
+    sort_by = request.args.get('sort', 'date')
+    period_type = request.args.get('period_type', '')
+    sel_fy = request.args.get('fy_year', type=int)
+    sel_q = request.args.get('quarter', type=int)
+    sel_m = request.args.get('month', type=int)
+    sel_emp = request.args.get('employee_id', type=int)
+
+    if not period_type:
+        if sel_m:
+            period_type = 'month'
+        elif sel_q:
+            period_type = 'quarter'
+        elif sel_fy is not None:
+            period_type = 'fy'
+        else:
+            period_type = 'all'
+
+    fy_year = sel_fy if sel_fy is not None else current_fy
+    quarter = sel_q if sel_q and 1 <= sel_q <= 4 else get_quarter(now.month)
+    month = sel_m if sel_m and 1 <= sel_m <= 12 else now.month
+    cal_year = fy_year if month >= 4 else fy_year + 1
+
+    fy_short = f"FY {fy_year}-{str(fy_year + 1)[-2:]}"
+    if period_type == 'month':
+        period_label = f"{MONTH_NAMES[month]}_{cal_year}"
+    elif period_type == 'quarter':
+        quarter_names = {1: 'Q1', 2: 'Q2', 3: 'Q3', 4: 'Q4'}
+        period_label = f"{quarter_names.get(quarter, f'Q{quarter}')}_{fy_short}".replace(' ', '_')
+    elif period_type == 'fy':
+        period_label = f"{fy_short}".replace(' ', '_')
+    else:
+        period_label = "All_Time"
+
+    transactions = models.get_all_transactions(
+        sort=sort_by,
+        period_type=period_type,
+        month=month,
+        year=cal_year,
+        quarter=quarter,
+        fy_year=fy_year,
+        employee_id=sel_emp
+    )
+
+    output = io.StringIO()
+    output.write('\ufeff')  # UTF-8 BOM for Excel
+    writer = csv.writer(output)
+
+    headers = [
+        "Deal Date", "Property ID", "Property Name", "Basic Price (INR)",
+        "Total Brokerage (INR)", "Brokerage (%)", "Employee Name", "GST Applied",
+        "Net Brok. (INR)", "Employee Share (INR)", "Employee Share (%)",
+        "Buyer Name", "Buyer Brok. Total (INR)", "Buyer Brok. Received (INR)", "Buyer Brok. Pending (INR)", "Buyer Last Payment Date",
+        "Seller Name", "Seller Brok. Total (INR)", "Seller Brok. Received (INR)", "Seller Brok. Pending (INR)", "Seller Last Payment Date",
+        "Deal Status", "Employee Payout Status"
+    ]
+    writer.writerow(headers)
+
+    for t in transactions:
+        b_pending = max(0, (t.get('buyer_commission_amount') or 0) - (t.get('buyer_commission_received') or 0))
+        s_pending = max(0, (t.get('seller_commission_amount') or 0) - (t.get('seller_commission_received') or 0))
+        basic = t.get('basic_price') or 0
+        cs_comm = t.get('cityscope_commission') or 0
+        brk_pct = f"{round((cs_comm / basic) * 100, 2)}%" if basic > 0 and cs_comm > 0 else "0%"
+        net_comm = t.get('net_commission') or 0
+        emp_comm = t.get('employee_commission') or 0
+        eff_pct = f"{round((emp_comm / net_comm) * 100, 1)}%" if net_comm > 0 else "0%"
+
+        writer.writerow([
+            t['transaction_date'].strftime('%Y-%m-%d') if t.get('transaction_date') else '',
+            t.get('property_id') or '',
+            t.get('property_name') or '',
+            f"{basic:,.2f}" if basic else 0,
+            f"{cs_comm:,.2f}" if cs_comm else 0,
+            brk_pct,
+            t.get('employee_name') or '',
+            'Yes' if (t.get('buyer_gst_applied') or t.get('seller_gst_applied')) else 'No',
+            f"{net_comm:,.2f}" if net_comm else 0,
+            f"{emp_comm:,.2f}" if emp_comm else 0,
+            eff_pct,
+            t.get('buyer_name') or '',
+            f"{t.get('buyer_commission_amount', 0):,.2f}",
+            f"{t.get('buyer_commission_received', 0):,.2f}",
+            f"{b_pending:,.2f}",
+            t['buyer_commission_date'].strftime('%Y-%m-%d') if t.get('buyer_commission_date') else '',
+            t.get('seller_name') or '',
+            f"{t.get('seller_commission_amount', 0):,.2f}",
+            f"{t.get('seller_commission_received', 0):,.2f}",
+            f"{s_pending:,.2f}",
+            t['seller_commission_date'].strftime('%Y-%m-%d') if t.get('seller_commission_date') else '',
+            t.get('payment_status') or '',
+            t.get('emp_payout_status') or ''
+        ])
+
+    csv_data = output.getvalue()
+    date_str = datetime.now().strftime('%Y%m%d')
+    clean_label = period_label.replace(' ', '_')
+    filename = f"Transactions_{clean_label}_{date_str}.csv"
+
+    return Response(
+        csv_data,
+        mimetype="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
     )
 
 
@@ -526,18 +744,83 @@ def admin_settle_transaction(id):
 @app.route('/admin/leaves')
 @admin_required
 def admin_leaves():
-    """Leave requests management."""
+    """Leave requests management with search and month filtering."""
     user = get_current_user()
-    pending_leaves = models.get_pending_leave_requests()
-    all_leaves = models.get_all_leave_requests()
+    now = datetime.now()
+
+    # Filter params
+    sel_m = request.args.get('month', type=int)
+    sel_y = request.args.get('year', type=int)
+    sel_emp = request.args.get('employee_id', type=int)
+    sel_status = request.args.get('status', 'ALL').strip().upper()
+    search = request.args.get('search', '').strip()
+
+    # Default year to current year if month is selected but year is not
+    if sel_m and not sel_y:
+        sel_y = now.year
+
+    # Available years list for dropdown (current year - 2 to current year + 1)
+    available_years = list(range(now.year + 1, now.year - 3, -1))
+
+    # All employees for dropdown
+    employees = models.get_all_employees()
+    selected_employee = next((e for e in employees if e['id'] == sel_emp), None) if sel_emp else None
+
+    # Fetch pending leaves (for the employee if employee selected)
+    pending_leaves = models.get_pending_leave_requests(employee_id=sel_emp)
+
+    # Fetch leaves with filter
+    all_leaves = models.get_all_leave_requests(
+        month=sel_m,
+        year=sel_y,
+        employee_id=sel_emp,
+        status=sel_status,
+        search=search
+    )
+
+    # Leaves taken (APPROVED) this calendar month for benchmark
+    this_month_approved_leaves = models.get_all_leave_requests(month=now.month, year=now.year, status='APPROVED')
+    this_month_taken_count = len(this_month_approved_leaves)
+
+    # Filtered view summary stats
+    filter_approved_count = sum(1 for lr in all_leaves if lr['status'] == 'APPROVED')
+    filter_pending_count = sum(1 for lr in all_leaves if lr['status'] == 'PENDING')
+    filter_rejected_count = sum(1 for lr in all_leaves if lr['status'] == 'REJECTED')
+    filter_unique_employees = len(set(lr['employee_id'] for lr in all_leaves if lr['status'] == 'APPROVED'))
+
+    # Label for filtered view
+    if sel_m and 1 <= sel_m <= 12:
+        period_label = f"{MONTH_NAMES[sel_m]} {sel_y}"
+    elif sel_y:
+        period_label = f"Year {sel_y}"
+    else:
+        period_label = "All Time"
 
     success = session.pop('leave_success', None)
 
     return render_template('admin/leaves.html',
         current_user=user,
+        employees=employees,
         pending_leaves=pending_leaves,
         all_leaves=all_leaves,
         success=success,
+        month_names=MONTH_NAMES,
+        sel_m=sel_m,
+        sel_y=sel_y,
+        sel_emp=sel_emp,
+        sel_status=sel_status,
+        search=search,
+        selected_employee=selected_employee,
+        available_years=available_years,
+        period_label=period_label,
+        this_month_taken_count=this_month_taken_count,
+        current_month_name=MONTH_NAMES[now.month],
+        current_month_num=now.month,
+        current_year=now.year,
+        filter_approved_count=filter_approved_count,
+        filter_pending_count=filter_pending_count,
+        filter_rejected_count=filter_rejected_count,
+        filter_unique_employees=filter_unique_employees,
     )
 
 
@@ -547,6 +830,9 @@ def admin_approve_leave(id):
     """Approve a leave request."""
     models.approve_leave(id)
     session['leave_success'] = 'Leave request approved.'
+    ref = request.referrer
+    if ref and '/admin/leaves' in ref:
+        return redirect(ref)
     return redirect(url_for('admin_leaves'))
 
 
@@ -556,6 +842,9 @@ def admin_reject_leave(id):
     """Reject a leave request."""
     models.reject_leave(id)
     session['leave_success'] = 'Leave request rejected.'
+    ref = request.referrer
+    if ref and '/admin/leaves' in ref:
+        return redirect(ref)
     return redirect(url_for('admin_leaves'))
 
 
@@ -565,6 +854,9 @@ def admin_cancel_leave(id):
     """Cancel (delete) a leave request."""
     models.delete_leave_request(id)
     session['leave_success'] = 'Leave request cancelled successfully.'
+    ref = request.referrer
+    if ref and '/admin/leaves' in ref:
+        return redirect(ref)
     return redirect(url_for('admin_leaves'))
 
 
@@ -1001,6 +1293,7 @@ def employee_cancel_leave(id):
 
 @app.route('/employee/change-password', methods=['POST'])
 @login_required
+@limiter.limit("5 per minute; 10 per hour")  # Prevent rapid password-change attempts
 def employee_change_password():
     """Allow logged-in employee to change their password directly."""
     user = get_current_user()

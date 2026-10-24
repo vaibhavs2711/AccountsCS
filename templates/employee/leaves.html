@@ -68,7 +68,7 @@
             {% for lr in leave_requests %}
             <div class="leave-item" style="padding: 12px 0; border-bottom: 1px solid var(--border);">
                 <div class="leave-header" style="display: flex; justify-content: space-between; align-items: center;">
-                    <span class="leave-date" style="font-weight: 600; font-size: 0.9rem;">{{ lr.date_of_leave.strftime('%d %b %Y') }}</span>
+                    <span class="leave-date" style="font-weight: 600; font-size: 0.9rem;">{{ lr.date_of_leave.strftime('%A, %d %b %Y') }}</span>
                     {% if lr.status == 'PENDING' %}
                         <span class="badge-pending">PENDING</span>
                     {% elif lr.status == 'APPROVED' %}
@@ -81,7 +81,7 @@
                 <div class="leave-reason" style="font-size: 0.8rem; color: var(--text-muted); margin-top: 4px;">{{ lr.reason }}</div>
                 {% endif %}
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 4px;">
-                    <div style="font-size: 0.7rem; color: var(--text-muted);">Applied on: {{ lr.applied_on.strftime('%d %b %Y %I:%M %p') }}</div>
+                    <div style="font-size: 0.75rem; color: #475569;">Applied on: <strong>{{ lr.applied_on.strftime('%A, %d %b %Y') if lr.applied_on else '—' }}</strong>{% if lr.applied_on %} <span style="font-size: 0.7rem; color: var(--text-muted);">({{ lr.applied_on.strftime('%I:%M %p') }})</span>{% endif %}</div>
                     {% if lr.status == 'APPROVED' and lr.date_of_leave.strftime('%Y-%m-%d') >= today %}
                     <form action="{{ url_for('employee_cancel_leave', id=lr.id) }}" method="POST" style="margin:0;" onsubmit="return confirm('Are you sure you want to cancel this leave?');">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
