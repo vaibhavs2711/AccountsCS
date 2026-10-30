@@ -40,7 +40,8 @@ jobs:
           if [ -n "$APP_DIR" ]; then
             echo "Deploying in $APP_DIR..."
             cd "$APP_DIR"
-            git pull origin main
+            git fetch origin main
+            git reset --hard origin/main
             sudo DOCKER_CONFIG=/tmp/.docker docker compose up -d --build --remove-orphans
             sudo docker image prune -f
             sudo DOCKER_CONFIG=/tmp/.docker docker compose ps

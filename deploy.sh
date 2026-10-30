@@ -7,9 +7,10 @@ set -e
 
 echo "🚀 Starting Deployment..."
 
-# 1. Pull latest code
-echo "📦 Pulling latest code from main..."
-git pull origin main
+# 1. Fetch latest code and reset to origin/main (prevents local conflict errors)
+echo "📦 Updating code to match main branch..."
+git fetch origin main
+git reset --hard origin/main
 
 # 2. Check for .env file
 if [ ! -f .env ]; then
