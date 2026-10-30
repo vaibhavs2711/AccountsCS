@@ -28,33 +28,24 @@ jobs:
     if: github.ref == 'refs/heads/main'
     runs-on: self-hosted
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Setup Environment File
+      - name: Deploy on Zima Server
         run: |
-          # If .env does not exist in workspace, create it from secrets or existing configuration
-          if [ ! -f .env ]; then
-            if [ -n "${{ secrets.TUNNEL_TOKEN }}" ]; then
-              echo "TUNNEL_TOKEN=${{ secrets.TUNNEL_TOKEN }}" > .env
-              echo "SECRET_KEY=${{ secrets.SECRET_KEY }}" >> .env
-              echo "MYSQL_PASSWORD=${{ secrets.MYSQL_PASSWORD }}" >> .env
-            elif [ -f /DATA/AppData/AccountsCS/.env ]; then
-              cp /DATA/AppData/AccountsCS/.env .env
-            elif [ -f ~/.AccountsCS.env ]; then
-              cp ~/.AccountsCS.env .env
-            fi
+          APP_DIR=""
+          if [ -d "/DATA/apps/AccountsCS" ]; then
+            APP_DIR="/DATA/apps/AccountsCS"
+          elif [ -d "$HOME/apps/AccountsCS" ]; then
+            APP_DIR="$HOME/apps/AccountsCS"
           fi
 
-      - name: Build & Restart Docker Compose
-        run: |
-          docker compose up -d --build --remove-orphans
-
-      - name: Cleanup Unused Docker Images
-        run: |
-          docker image prune -f
-
-      - name: Check Container Status
-        run: |
-          docker compose ps
+          if [ -n "$APP_DIR" ]; then
+            echo "Deploying in $APP_DIR..."
+            cd "$APP_DIR"
+            git pull origin main
+            sudo DOCKER_CONFIG=/tmp/.docker docker compose up -d --build --remove-orphans
+            sudo docker image prune -f
+            sudo DOCKER_CONFIG=/tmp/.docker docker compose ps
+          else
+            echo "Error: AccountsCS directory not found on ZimaOS!"
+            exit 1
+          fi
 
