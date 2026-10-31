@@ -817,6 +817,16 @@ def update_user(user_id: int, data: dict):
         db.close()
 
 
+
+
+def update_user_status(user_id: int, is_active: int):
+    """Update active/suspended status for a user (1 = Active, 0 = Suspended)."""
+    db = get_db()
+    try:
+        with db.cursor() as cur:
+            cur.execute("UPDATE users SET is_active = %s WHERE id = %s", (is_active, user_id))
+    finally:
+        db.close()
 def update_user_password(user_id: int, password_hash: str):
     """Update password hash for a specific user."""
     db = get_db()
