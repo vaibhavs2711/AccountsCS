@@ -1,27 +1,33 @@
 name: CI/CD Pipeline - Deploy to Zima Server
 
+# Run automatically when code is pushed to main, or manually from GitHub.
 on:
   push:
     branches: [ "main" ]
   workflow_dispatch:
 
 jobs:
+  # First check that the main Python files have valid syntax.
   test:
     name: 🔍 Build & Syntax Verification
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
+        # Downloads the repository so the workflow can access its files.
         uses: actions/checkout@v4
 
       - name: Set up Python
+        # Installs Python 3.12 for the syntax check.
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
 
       - name: Syntax Check
+        # Checks these files for syntax errors without running the app.
         run: |
           python -m py_compile app.py auth.py config.py models.py seed.py
 
+  # Deploy only after the syntax check succeeds.
   deploy:
     name: 🚀 Deploy to Zima Server
     needs: test
@@ -29,6 +35,8 @@ jobs:
     runs-on: self-hosted
     steps:
       - name: Deploy on Zima Server
+        # Find the app folder, update it to match origin/main, then rebuild and
+        # start its Docker containers.
         run: |
           APP_DIR=""
           if [ -d "/DATA/apps/AccountsCS" ]; then
@@ -40,13 +48,16 @@ jobs:
           if [ -n "$APP_DIR" ]; then
             echo "Deploying in $APP_DIR..."
             cd "$APP_DIR"
+            # Download the latest main branch and make this folder match it.
             git fetch origin main
             git reset --hard origin/main
+            # Build and start services, remove unused services, and clean old images.
             sudo DOCKER_CONFIG=/tmp/.docker docker compose up -d --build --remove-orphans
             sudo docker image prune -f
+            # Show the status of the running services.
             sudo DOCKER_CONFIG=/tmp/.docker docker compose ps
           else
+            # Stop with an error if the app folder cannot be found.
             echo "Error: AccountsCS directory not found on ZimaOS!"
             exit 1
           fi
-
