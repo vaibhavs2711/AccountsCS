@@ -55,6 +55,7 @@ def run_seed():
                     salary DOUBLE NOT NULL DEFAULT 0,
                     target_multiplier DOUBLE NOT NULL DEFAULT 7.0,
                     commission_rate DOUBLE NOT NULL DEFAULT 0.20,
+                    is_active TINYINT(1) NOT NULL DEFAULT 1,
                     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
             """)
@@ -124,6 +125,11 @@ def run_seed():
             if cur.fetchone() is None:
                 cur.execute("ALTER TABLE users ADD COLUMN commission_rate DOUBLE NOT NULL DEFAULT 0.20")
                 print("✔ Column 'commission_rate' migrated on users.")
+
+            cur.execute("SHOW COLUMNS FROM users LIKE 'is_active'")
+            if cur.fetchone() is None:
+                cur.execute("ALTER TABLE users ADD COLUMN is_active TINYINT(1) NOT NULL DEFAULT 1")
+                print("✔ Column 'is_active' migrated on users.")
 
             cur.execute("""
                 ALTER TABLE transactions 

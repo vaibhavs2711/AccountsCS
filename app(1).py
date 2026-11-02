@@ -1,0 +1,1549 @@
+"""
+Cityscope Accounts & Commission System
+Main Flask Application - All routes and configuration.
+"""
+
+from datetime import datetime, timedelta, time
+from flask import (
+    Flask, render_template, request, redirect, url_for, session, flash, jsonify, Response
+)
+
+import config
+from auth import (
+    hash_password, verify_password, get_current_user,
+    login_required, admin_required,
+)
+from commission import (
+    TEAM_CONFIG, MONTH_NAMES, format_inr,
+    get_quarter, get_fy_year, get_fy_label, get_quarter_months,
+    calculate_commission, get_monthly_target, get_quarterly_target,
+    get_progress_color, get_progress_percentage,
+)
+import models
+from flask_wtf.csrf import CSRFProtect, CSRFError
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+
+# ---------------------------------------------------------------------------
+# App setup
+# ---------------------------------------------------------------------------
+
+app = Flask(__name__)
+app.secret_key = config.SECRET_KEY
+app.permanent_session_lifetime = config.PERMANENT_SESSION_LIFETIME
+app.config['SESSION_COOKIE_HTTPONLY'] = config.SESSION_COOKIE_HTTPONLY
+app.config['SESSION_COOKIE_SECURE'] = config.SESSION_COOKIE_SECURE
+app.config['SESSION_COOKIE_SAMESITE'] = config.SESSION_COOKIE_SAMESITE
+
+# CSRF Protection
+app.config['WTF_CSRF_ENABLED'] = config.WTF_CSRF_ENABLED
+app.config['WTF_CSRF_TIME_LIMIT'] = config.WTF_CSRF_TIME_LIMIT
+app.config['WTF_CSRF_SSL_STRICT'] = config.WTF_CSRF_SSL_STRICT
+csrf = CSRFProtect(app)
+
+# Rate Limiting
+# NOTE: storage_uri="memory://" is per-process and non-persistent.
+# For multi-worker deployments (Gunicorn), switch to Redis:
+#   storage_uri="redis://redis:6379"
+# and add 'redis' + 'flask-limiter[redis]' to requirements.txt.
+limiter = Limiter(
+    get_remote_address,
+    app=app,
+    default_limits=["200 per day", "50 per hour"],
+    storage_uri="memory://",
+)
+
+# Security Headers (manual implementation for production)
+if config.TALISMAN_ENABLED:
+    @app.after_request
+    def add_security_headers(response):
+        response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
+        response.headers['X-Content-Type-Options'] = 'nosniff'
+        response.headers['X-Frame-Options'] = 'DENY'
+        response.headers['X-XSS-Protection'] = '1; mode=block'
+        response.headers['Content-Security-Policy'] = (
+            "default-src 'self' blob:; "
+            "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; "
+            "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+            "font-src 'self' https://cdn.jsdelivr.net; "
+            "img-src 'self' data: blob:; "
+            "connect-src 'self' blob:"
+        )
+        response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+        response.headers['Permissions-Policy'] = 'geolocation=(), microphone=(), camera=()'
+        return response
+
+
+# CSRF Error Handler
+@app.errorhandler(CSRFError)
+def handle_csrf_error(e):
+    return render_template('login.html', error='CSRF token missing or invalid. Please refresh and try again.'), 400
+
+
+# Rate Limit Exceeded Handler
+@app.errorhandler(429)
+def handle_rate_limit_error(e):
+    """Return a user-friendly response when a rate limit is exceeded."""
+    # For AJAX / JSON requests return JSON
+    if request.accept_mimetypes.accept_json and not request.accept_mimetypes.accept_html:
+        return jsonify({
+            'success': False,
+            'error': 'Too many requests. Please wait a moment and try again.'
+        }), 429
+    # For HTML requests, re-render the login page with an error message
+    return render_template(
+        'login.html',
+        error='Too many requests. Please wait a moment and try again.'
+    ), 429
+
+
+# ---------------------------------------------------------------------------
+# Jinja2 globals / filters - available in every template
+# ---------------------------------------------------------------------------
+
+app.jinja_env.globals.update(
+    format_inr=format_inr,
+    month_names=MONTH_NAMES,
+    get_progress_color=get_progress_color,
+)
+
+
+# ---------------------------------------------------------------------------
+# PUBLIC ROUTES
+# ---------------------------------------------------------------------------
+
+@app.route('/')
+def index():
+    """Redirect based on session: ADMIN→/admin, EMPLOYEE→/employee, else→/login."""
+    user = get_current_user()
+    if user is None:
+        return redirect(url_for('login'))
+    if user['role'] == 'ADMIN':
+        return redirect(url_for('admin_dashboard'))
+    return redirect(url_for('employee_dashboard'))
+
+
+@app.route('/login', methods=['GET', 'POST'])
+@limiter.limit("5 per minute; 20 per hour")  # Tightened: was 20/min & 200/hr
+def login():
+    """Login page - GET renders form, POST authenticates."""
+    user = get_current_user()
+    if user:
+        if user['role'] == 'ADMIN':
+            return redirect(url_for('admin_dashboard'))
+        return redirect(url_for('employee_dashboard'))
+
+    error = None
+    if request.method == 'POST':
+        email = request.form.get('email', '').strip()
+        password = request.form.get('password', '')
+        
+        # Validate email format
+        if not models.validate_email(email):
+            error = 'Invalid email format.'
+        else:
+            user = models.get_user_by_email(email)
+            if user and verify_password(password, user['password']):
+                if user.get('role') != 'ADMIN' and user.get('is_active') is not None and not user['is_active']:
+                    error = 'Your account has been deactivated. Please contact your administrator.'
+                    return render_template('login.html', error=error)
+                session.permanent = True
+                session['user_id'] = user['id']
+                if user['role'] == 'ADMIN':
+                    return redirect(url_for('admin_dashboard'))
+                return redirect(url_for('employee_dashboard'))
+            error = 'Invalid email or password.'
+
+    return render_template('login.html', error=error)
+
+
+@app.route('/logout', methods=['POST'])
+def logout():
+    """Clear session and redirect to login."""
+    session.clear()
+    return redirect(url_for('login'))
+
+
+# ---------------------------------------------------------------------------
+# ADMIN ROUTES
+# ---------------------------------------------------------------------------
+
+@app.route('/admin')
+@admin_required
+def admin_dashboard():
+    """Admin dashboard - stats, leaderboard, recent transactions."""
+    user = get_current_user()
+    now = datetime.now()
+    month, year = now.month, now.year
+    from commission import get_quarter, get_fy_year
+    quarter = get_quarter(month)
+    fy_year = get_fy_year(month, year)
+
+    # Stats
+    employee_count = models.get_employee_count()
+    transaction_count = models.get_transaction_count()
+    pending_brokerage_data = models.get_pending_brokerage_details()
+    pending_brokerage = format_inr(pending_brokerage_data['total_pending'])
+    collected_brokerage = format_inr(models.get_collected_brokerage_for_month(month, year))
+    collected_brokerage_qtr = format_inr(models.get_collected_brokerage_for_quarter(quarter, fy_year))
+    pending_leaves = models.get_pending_leave_count()
+
+    # Leaderboard: each employee's business this month vs target
+    employees = models.get_all_employees()
+    leaderboard = []
+    for emp in employees:
+        if not emp['team_type']:
+            continue
+        tc = TEAM_CONFIG.get(emp['team_type'], {})
+        target = get_monthly_target(emp['salary'], target_multiplier=emp['target_multiplier'])
+        business = models.get_employee_business_for_month(emp['id'], month, year)
+        pct = get_progress_percentage(business, target)
+        leaderboard.append({
+            'id': emp['id'],
+            'name': emp['name'],
+            'team_label': tc.get('label', emp['team_type']),
+            'business_done_fmt': format_inr(business),
+            'target_fmt': format_inr(target),
+            'percentage': pct,
+            'color': get_progress_color(pct),
+        })
+    leaderboard.sort(key=lambda x: x['percentage'], reverse=True)
+
+    # Recent transactions this month (up to 10)
+    recent_transactions = models.get_transactions_by_month(month, year)[:10]
+
+    return render_template('admin/dashboard.html',
+        current_user=user,
+        current_month_name=MONTH_NAMES[month],
+        current_year=year,
+        employee_count=employee_count,
+        transaction_count=transaction_count,
+        pending_brokerage=pending_brokerage,
+        pending_brokerage_data=pending_brokerage_data,
+        collected_brokerage=collected_brokerage,
+        collected_brokerage_qtr=collected_brokerage_qtr,
+        pending_commission=pending_brokerage,
+        pending_leaves=pending_leaves,
+        leaderboard=leaderboard,
+        recent_transactions=recent_transactions,
+    )
+
+
+@app.route('/admin/employees')
+@admin_required
+def admin_employees():
+    """List employees + add form."""
+    user = get_current_user()
+    employees_raw = models.get_all_employees()
+    employees = []
+    for emp in employees_raw:
+        tc = TEAM_CONFIG.get(emp['team_type'], {})
+        target = get_monthly_target(emp['salary'], target_multiplier=emp['target_multiplier']) if emp['team_type'] else 0
+        employees.append({
+            **emp,
+            'team_label': tc.get('label', emp['team_type'] or '-'),
+            'salary_fmt': format_inr(emp['salary']),
+            'target_fmt': format_inr(target),
+            'joined': emp['created_at'].strftime('%d %b %Y') if emp['created_at'] else '-',
+        })
+
+    # Check for flash messages (success/error passed via session)
+    success = session.pop('emp_success', None)
+    error = session.pop('emp_error', None)
+
+    return render_template('admin/employees.html',
+        current_user=user,
+        employees=employees,
+        success=success,
+        error=error,
+    )
+
+
+@app.route('/admin/employees/add', methods=['POST'])
+@admin_required
+def admin_add_employee():
+    """Create a new employee."""
+    name = request.form.get('name', '').strip()
+    email = request.form.get('email', '').strip()
+    password = request.form.get('password', '').strip()
+    salary_str = request.form.get('salary', '0')
+    team_type = request.form.get('team_type', '')
+    target_mult_str = request.form.get('target_multiplier', '').strip()
+    comm_rate_str = request.form.get('commission_rate', '').strip()
+
+    # Validation
+    if not all([name, email, password, team_type]):
+        session['emp_error'] = 'All fields are required.'
+        return redirect(url_for('admin_employees'))
+
+    if not models.validate_name(name):
+        session['emp_error'] = 'Invalid name format.'
+        return redirect(url_for('admin_employees'))
+
+    if not models.validate_email(email):
+        session['emp_error'] = 'Invalid email format.'
+        return redirect(url_for('admin_employees'))
+
+    valid, msg = models.validate_password_strength(password)
+    if not valid:
+        session['emp_error'] = msg
+        return redirect(url_for('admin_employees'))
+
+    if team_type not in TEAM_CONFIG:
+        session['emp_error'] = 'Invalid team type.'
+        return redirect(url_for('admin_employees'))
+
+    try:
+        salary = float(salary_str)
+        if salary < 0 or salary > 10000000:
+            raise ValueError
+        target_multiplier = float(target_mult_str) if target_mult_str else TEAM_CONFIG[team_type]['multiplier']
+        commission_rate = (float(comm_rate_str) / 100.0) if comm_rate_str else TEAM_CONFIG[team_type]['commission_rate']
+        if not (0 <= target_multiplier <= 100):
+            raise ValueError
+        if not (0 <= commission_rate <= 1):
+            raise ValueError
+    except ValueError:
+        session['emp_error'] = 'Invalid salary, multiplier, or commission rate value.'
+        return redirect(url_for('admin_employees'))
+
+    # Check unique email
+    existing = models.get_user_by_email(email)
+    if existing:
+        session['emp_error'] = f'Email "{email}" is already registered.'
+        return redirect(url_for('admin_employees'))
+
+    hashed = hash_password(password)
+    models.create_user(name, email, hashed, 'EMPLOYEE', team_type, salary, target_multiplier, commission_rate)
+    session['emp_success'] = f'Employee "{name}" added successfully!'
+    return redirect(url_for('admin_employees'))
+
+
+@app.route('/admin/transactions')
+@admin_required
+def admin_transactions():
+    """List transactions + add form with month/quarter/FY filtering."""
+    user = get_current_user()
+    now = datetime.now()
+    current_fy = get_fy_year(now.month, now.year)
+    
+    sort_by = request.args.get('sort', 'added')
+    
+    period_type = request.args.get('period_type', '')
+    sel_fy = request.args.get('fy_year', type=int)
+    sel_q = request.args.get('quarter', type=int)
+    sel_m = request.args.get('month', type=int)
+    sel_emp = request.args.get('employee_id', type=int)
+
+    # Smart determination of period_type
+    if not period_type:
+        if sel_m:
+            period_type = 'month'
+        elif sel_q:
+            period_type = 'quarter'
+        elif sel_fy is not None:
+            period_type = 'fy'
+        else:
+            period_type = 'all'
+
+    fy_year = sel_fy if sel_fy is not None else current_fy
+    quarter = sel_q if sel_q and 1 <= sel_q <= 4 else get_quarter(now.month)
+    month = sel_m if sel_m and 1 <= sel_m <= 12 else now.month
+
+    # Generate available financial years for dropdown
+    available_fys = []
+    for fy in range(current_fy - 3, current_fy + 2):
+        available_fys.append({
+            'year': fy,
+            'label': f"FY {fy}-{str(fy + 1)[-2:]}"
+        })
+
+    # Calendar year for month filter
+    cal_year = fy_year if month >= 4 else fy_year + 1
+
+    # Descriptive period label for UI and export filename
+    fy_short = f"FY {fy_year}-{str(fy_year + 1)[-2:]}"
+    if period_type == 'month':
+        period_label = f"{MONTH_NAMES[month]} {cal_year}"
+    elif period_type == 'quarter':
+        quarter_names = {1: 'Q1 (Apr - Jun)', 2: 'Q2 (Jul - Sep)', 3: 'Q3 (Oct - Dec)', 4: 'Q4 (Jan - Mar)'}
+        period_label = f"{quarter_names.get(quarter, f'Q{quarter}')} {fy_short}"
+    elif period_type == 'fy':
+        period_label = f"Full {fy_short}"
+    else:
+        period_label = "All Time"
+
+    employees = models.get_all_employees()
+    selected_employee = next((e for e in employees if e['id'] == sel_emp), None) if sel_emp else None
+
+    # Fetch transactions filtered
+    transactions = models.get_all_transactions(
+        sort=sort_by,
+        period_type=period_type,
+        month=month,
+        year=cal_year,
+        quarter=quarter,
+        fy_year=fy_year,
+        employee_id=sel_emp
+    )
+
+    payments = models.get_transaction_payments_dict()
+    import json
+    payments_json = json.dumps(payments)
+
+    summary_stats = {
+        'count': len(transactions),
+        'basic_price': sum(t.get('basic_price') or 0 for t in transactions),
+        'brokerage': sum(t.get('cityscope_commission') or 0 for t in transactions),
+        'net_brokerage': sum(t.get('net_commission') or 0 for t in transactions),
+        'employee_commission': sum(t.get('employee_commission') or 0 for t in transactions),
+        'collected': sum((t.get('buyer_commission_received') or 0) + (t.get('seller_commission_received') or 0) for t in transactions),
+        'pending': sum(
+            max(0, (t.get('buyer_commission_amount') or 0) - (t.get('buyer_commission_received') or 0)) +
+            max(0, (t.get('seller_commission_amount') or 0) - (t.get('seller_commission_received') or 0))
+            for t in transactions
+        ),
+    }
+
+    success = session.pop('txn_success', None)
+    error = session.pop('txn_error', None)
+
+    return render_template('admin/transactions.html',
+        current_user=user,
+        employees=employees,
+        transactions=transactions,
+        month_names=MONTH_NAMES,
+        success=success,
+        error=error,
+        current_sort=sort_by,
+        payments_json=payments_json,
+        period_type=period_type,
+        fy_year=fy_year,
+        quarter=quarter,
+        month=month,
+        cal_year=cal_year,
+        available_fys=available_fys,
+        period_label=period_label,
+        sel_emp=sel_emp,
+        selected_employee=selected_employee,
+        summary_stats=summary_stats,
+    )
+
+
+@app.route('/admin/transactions/export')
+@admin_required
+def admin_export_transactions():
+    """Export filtered transactions to CSV (Excel compatible)."""
+    import csv
+    import io
+
+    now = datetime.now()
+    current_fy = get_fy_year(now.month, now.year)
+
+    sort_by = request.args.get('sort', 'date')
+    period_type = request.args.get('period_type', '')
+    sel_fy = request.args.get('fy_year', type=int)
+    sel_q = request.args.get('quarter', type=int)
+    sel_m = request.args.get('month', type=int)
+    sel_emp = request.args.get('employee_id', type=int)
+
+    if not period_type:
+        if sel_m:
+            period_type = 'month'
+        elif sel_q:
+            period_type = 'quarter'
+        elif sel_fy is not None:
+            period_type = 'fy'
+        else:
+            period_type = 'all'
+
+    fy_year = sel_fy if sel_fy is not None else current_fy
+    quarter = sel_q if sel_q and 1 <= sel_q <= 4 else get_quarter(now.month)
+    month = sel_m if sel_m and 1 <= sel_m <= 12 else now.month
+    cal_year = fy_year if month >= 4 else fy_year + 1
+
+    fy_short = f"FY {fy_year}-{str(fy_year + 1)[-2:]}"
+    if period_type == 'month':
+        period_label = f"{MONTH_NAMES[month]}_{cal_year}"
+    elif period_type == 'quarter':
+        quarter_names = {1: 'Q1', 2: 'Q2', 3: 'Q3', 4: 'Q4'}
+        period_label = f"{quarter_names.get(quarter, f'Q{quarter}')}_{fy_short}".replace(' ', '_')
+    elif period_type == 'fy':
+        period_label = f"{fy_short}".replace(' ', '_')
+    else:
+        period_label = "All_Time"
+
+    transactions = models.get_all_transactions(
+        sort=sort_by,
+        period_type=period_type,
+        month=month,
+        year=cal_year,
+        quarter=quarter,
+        fy_year=fy_year,
+        employee_id=sel_emp
+    )
+
+    output = io.StringIO()
+    output.write('\ufeff')  # UTF-8 BOM for Excel
+    writer = csv.writer(output)
+
+    headers = [
+        "Deal Date", "Property ID", "Property Name", "Basic Price (INR)",
+        "Total Brokerage (INR)", "Brokerage (%)", "Employee Name", "GST Applied",
+        "Net Brok. (INR)", "Employee Share (INR)", "Employee Share (%)",
+        "Buyer Name", "Buyer Brok. Total (INR)", "Buyer Brok. Received (INR)", "Buyer Brok. Pending (INR)", "Buyer Last Payment Date",
+        "Seller Name", "Seller Brok. Total (INR)", "Seller Brok. Received (INR)", "Seller Brok. Pending (INR)", "Seller Last Payment Date",
+        "Deal Status", "Employee Payout Status"
+    ]
+    writer.writerow(headers)
+
+    for t in transactions:
+        b_pending = max(0, (t.get('buyer_commission_amount') or 0) - (t.get('buyer_commission_received') or 0))
+        s_pending = max(0, (t.get('seller_commission_amount') or 0) - (t.get('seller_commission_received') or 0))
+        basic = t.get('basic_price') or 0
+        cs_comm = t.get('cityscope_commission') or 0
+        brk_pct = f"{round((cs_comm / basic) * 100, 2)}%" if basic > 0 and cs_comm > 0 else "0%"
+        net_comm = t.get('net_commission') or 0
+        emp_comm = t.get('employee_commission') or 0
+        eff_pct = f"{round((emp_comm / net_comm) * 100, 1)}%" if net_comm > 0 else "0%"
+
+        writer.writerow([
+            t['transaction_date'].strftime('%Y-%m-%d') if t.get('transaction_date') else '',
+            t.get('property_id') or '',
+            t.get('property_name') or '',
+            f"{basic:,.2f}" if basic else 0,
+            f"{cs_comm:,.2f}" if cs_comm else 0,
+            brk_pct,
+            t.get('employee_name') or '',
+            'Yes' if (t.get('buyer_gst_applied') or t.get('seller_gst_applied')) else 'No',
+            f"{net_comm:,.2f}" if net_comm else 0,
+            f"{emp_comm:,.2f}" if emp_comm else 0,
+            eff_pct,
+            t.get('buyer_name') or '',
+            f"{t.get('buyer_commission_amount', 0):,.2f}",
+            f"{t.get('buyer_commission_received', 0):,.2f}",
+            f"{b_pending:,.2f}",
+            t['buyer_commission_date'].strftime('%Y-%m-%d') if t.get('buyer_commission_date') else '',
+            t.get('seller_name') or '',
+            f"{t.get('seller_commission_amount', 0):,.2f}",
+            f"{t.get('seller_commission_received', 0):,.2f}",
+            f"{s_pending:,.2f}",
+            t['seller_commission_date'].strftime('%Y-%m-%d') if t.get('seller_commission_date') else '',
+            t.get('payment_status') or '',
+            t.get('emp_payout_status') or ''
+        ])
+
+    csv_data = output.getvalue()
+    date_str = datetime.now().strftime('%Y%m%d')
+    clean_label = period_label.replace(' ', '_')
+    filename = f"Transactions_{clean_label}_{date_str}.csv"
+
+    return Response(
+        csv_data,
+        mimetype="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
+
+@app.route('/admin/transactions/save', methods=['POST'])
+@admin_required
+def admin_add_transaction():
+    """Create or update a transaction with calculated commission."""
+    transaction_id_str = request.form.get('transaction_id', '')
+    employee_id_str = request.form.get('employee_id', '')
+    property_id = request.form.get('property_id', '').strip()
+    property_name = request.form.get('property_name', '').strip()
+    basic_price_str = request.form.get('basic_price', '0')
+    transaction_date_str = request.form.get('transaction_date', '').strip()
+    cs_commission_str = request.form.get('cityscope_commission', '')
+    buyer_amount_str = request.form.get('buyer_commission_amount', '')
+    seller_amount_str = request.form.get('seller_commission_amount', '')
+    buyer_gst_applied = request.form.get('buyer_gst_applied') == '1'
+    seller_gst_applied = request.form.get('seller_gst_applied') == '1'
+    buyer_name = request.form.get('buyer_name', '').strip() or None
+    seller_name = request.form.get('seller_name', '').strip() or None
+    buyer_is_broker = request.form.get('buyer_is_broker') == '1'
+    seller_is_broker = request.form.get('seller_is_broker') == '1'
+
+    # Retrieve payment installments
+    buyer_payment_amounts = request.form.getlist('buyer_payment_amounts')
+    buyer_payment_dates = request.form.getlist('buyer_payment_dates')
+    seller_payment_amounts = request.form.getlist('seller_payment_amounts')
+    seller_payment_dates = request.form.getlist('seller_payment_dates')
+
+    # Validation
+    if not all([employee_id_str, property_id, property_name, transaction_date_str]):
+        session['txn_error'] = 'All required fields must be filled.'
+        return redirect(url_for('admin_transactions'))
+
+    if not property_id.upper().startswith('CSID'):
+        session['txn_error'] = 'Property ID must start with "CSID".'
+        return redirect(url_for('admin_transactions'))
+
+    try:
+        employee_id = int(employee_id_str)
+        cs_commission = float(cs_commission_str) if cs_commission_str else 0.0
+        buyer_amount = float(buyer_amount_str) if buyer_amount_str else 0.0
+        seller_amount = float(seller_amount_str) if seller_amount_str else 0.0
+        basic_price = float(basic_price_str) if basic_price_str else 0.0
+    except ValueError:
+        session['txn_error'] = 'Invalid numeric value(s).'
+        return redirect(url_for('admin_transactions'))
+
+    employee = models.get_user_by_id(employee_id)
+    if not employee or employee['role'] != 'EMPLOYEE':
+        session['txn_error'] = 'Invalid employee selected.'
+        return redirect(url_for('admin_transactions'))
+
+    if not employee['team_type']:
+        session['txn_error'] = 'Selected employee has no team assigned.'
+        return redirect(url_for('admin_transactions'))
+
+    # Calculate received amounts and latest dates from installments lists
+    buyer_received = 0.0
+    buyer_dates = []
+    for amt_str, date_str in zip(buyer_payment_amounts, buyer_payment_dates):
+        if amt_str:
+            try:
+                buyer_received += float(amt_str)
+            except ValueError:
+                pass
+        if date_str:
+            buyer_dates.append(date_str)
+    buyer_date = max(buyer_dates) if buyer_dates else None
+
+    seller_received = 0.0
+    seller_dates = []
+    for amt_str, date_str in zip(seller_payment_amounts, seller_payment_dates):
+        if amt_str:
+            try:
+                seller_received += float(amt_str)
+            except ValueError:
+                pass
+        if date_str:
+            seller_dates.append(date_str)
+    seller_date = max(seller_dates) if seller_dates else None
+    custom_comm_rate_str = request.form.get('custom_commission_rate', '').strip()
+    custom_emp_comm_str = request.form.get('custom_employee_commission', '').strip()
+
+    # Determine effective commission rate for this deal
+    effective_comm_rate = employee.get('commission_rate', 0.20)
+    if custom_comm_rate_str:
+        try:
+            effective_comm_rate = float(custom_comm_rate_str) / 100.0
+        except ValueError:
+            pass
+
+    # Calculate commission based on received amounts
+    net_commission, calculated_emp_commission = calculate_commission(
+        buyer_amount=buyer_received,
+        buyer_gst_applied=buyer_gst_applied,
+        seller_amount=seller_received,
+        seller_gst_applied=seller_gst_applied,
+        commission_rate=effective_comm_rate
+    )
+
+    # Use manual fixed share if provided, otherwise calculated share
+    if custom_emp_comm_str:
+        try:
+            employee_commission = float(custom_emp_comm_str)
+        except ValueError:
+            employee_commission = calculated_emp_commission
+    else:
+        employee_commission = calculated_emp_commission
+
+    # Date fields
+    try:
+        txn_date = datetime.strptime(transaction_date_str, '%Y-%m-%d')
+    except ValueError:
+        session['txn_error'] = 'Invalid transaction date format.'
+        return redirect(url_for('admin_transactions'))
+
+    month = txn_date.month
+    year = txn_date.year
+    quarter = get_quarter(month)
+    fy_year = get_fy_year(month, year)
+
+    # Calculate payment status based on received amounts
+    if (buyer_received >= buyer_amount) and (seller_received >= seller_amount):
+        payment_status = 'DONE'
+    elif (buyer_received > 0) or (seller_received > 0):
+        payment_status = 'PARTIAL'
+    else:
+        payment_status = 'PENDING'
+
+    transaction_data = {
+        'property_id': property_id,
+        'property_name': property_name,
+        'basic_price': basic_price,
+        'cityscope_commission': cs_commission,
+        'buyer_commission_amount': buyer_amount,
+        'buyer_commission_received': buyer_received,
+        'buyer_commission_date': buyer_date,
+        'seller_commission_amount': seller_amount,
+        'seller_commission_received': seller_received,
+        'seller_commission_date': seller_date,
+        'buyer_gst_applied': int(buyer_gst_applied),
+        'seller_gst_applied': int(seller_gst_applied),
+        'buyer_name': buyer_name,
+        'seller_name': seller_name,
+        'buyer_is_broker': int(buyer_is_broker),
+        'seller_is_broker': int(seller_is_broker),
+        'gst_applied': 0,
+        'net_commission': net_commission,
+        'employee_commission': employee_commission,
+        'payment_status': payment_status,
+        'transaction_date': transaction_date_str,
+        'month': month,
+        'year': year,
+        'quarter': quarter,
+        'employee_id': employee_id,
+    }
+
+    if transaction_id_str:
+        txn_id = int(transaction_id_str)
+        models.update_transaction(txn_id, transaction_data)
+        models.save_transaction_payments(txn_id, 'BUYER', buyer_payment_amounts, buyer_payment_dates)
+        models.save_transaction_payments(txn_id, 'SELLER', seller_payment_amounts, seller_payment_dates)
+        models.recalculate_employee_quarterly_commissions(employee_id, quarter, fy_year)
+        updated_txn = models.get_transaction_by_id(txn_id)
+        final_comm = updated_txn['employee_commission'] if updated_txn else employee_commission
+        session['txn_success'] = (
+            f'Transaction for "{property_name}" updated. '
+            f'Employee commission: {format_inr(final_comm)}'
+        )
+    else:
+        txn_id = models.create_transaction(transaction_data)
+        models.save_transaction_payments(txn_id, 'BUYER', buyer_payment_amounts, buyer_payment_dates)
+        models.save_transaction_payments(txn_id, 'SELLER', seller_payment_amounts, seller_payment_dates)
+        models.recalculate_employee_quarterly_commissions(employee_id, quarter, fy_year)
+        txns = models.get_transactions_by_employee(employee_id)
+        final_comm = txns[0]['employee_commission'] if txns else employee_commission
+        session['txn_success'] = (
+            f'Transaction for "{property_name}" added. '
+            f'Employee commission: {format_inr(final_comm)}'
+        )
+    return redirect(url_for('admin_transactions'))
+
+
+@app.route('/admin/transactions/mark-paid/<int:id>', methods=['POST'])
+@admin_required
+def admin_mark_paid(id):
+    """Mark a transaction's payment status as DONE."""
+    models.mark_transaction_paid(id)
+    session['txn_success'] = 'Transaction marked as paid.'
+    return redirect(url_for('admin_transactions'))
+
+
+@app.route('/admin/transactions/settle/<int:id>', methods=['POST'])
+@admin_required
+def admin_settle_transaction(id):
+    """Settle a transaction as DONE keeping the currently received partial payments."""
+    models.settle_transaction(id)
+    session['txn_success'] = 'Transaction forced complete (settled).'
+    return redirect(url_for('admin_transactions'))
+
+
+@app.route('/admin/leaves')
+@admin_required
+def admin_leaves():
+    """Leave requests management with search and month filtering."""
+    user = get_current_user()
+    now = datetime.now()
+
+    # Filter params
+    sel_m = request.args.get('month', type=int)
+    sel_y = request.args.get('year', type=int)
+    sel_emp = request.args.get('employee_id', type=int)
+    sel_status = request.args.get('status', 'ALL').strip().upper()
+    search = request.args.get('search', '').strip()
+
+    # Default year to current year if month is selected but year is not
+    if sel_m and not sel_y:
+        sel_y = now.year
+
+    # Available years list for dropdown (current year - 2 to current year + 1)
+    available_years = list(range(now.year + 1, now.year - 3, -1))
+
+    # All employees for dropdown
+    employees = models.get_all_employees()
+    selected_employee = next((e for e in employees if e['id'] == sel_emp), None) if sel_emp else None
+
+    # Fetch pending leaves (for the employee if employee selected)
+    pending_leaves = models.get_pending_leave_requests(employee_id=sel_emp)
+
+    # Fetch leaves with filter
+    all_leaves = models.get_all_leave_requests(
+        month=sel_m,
+        year=sel_y,
+        employee_id=sel_emp,
+        status=sel_status,
+        search=search
+    )
+
+    # Leaves taken (APPROVED) this calendar month for benchmark
+    this_month_approved_leaves = models.get_all_leave_requests(month=now.month, year=now.year, status='APPROVED')
+    this_month_taken_count = len(this_month_approved_leaves)
+
+    # Filtered view summary stats
+    filter_approved_count = sum(1 for lr in all_leaves if lr['status'] == 'APPROVED')
+    filter_pending_count = sum(1 for lr in all_leaves if lr['status'] == 'PENDING')
+    filter_rejected_count = sum(1 for lr in all_leaves if lr['status'] == 'REJECTED')
+    filter_unique_employees = len(set(lr['employee_id'] for lr in all_leaves if lr['status'] == 'APPROVED'))
+
+    # Label for filtered view
+    if sel_m and 1 <= sel_m <= 12:
+        period_label = f"{MONTH_NAMES[sel_m]} {sel_y}"
+    elif sel_y:
+        period_label = f"Year {sel_y}"
+    else:
+        period_label = "All Time"
+
+    success = session.pop('leave_success', None)
+
+    return render_template('admin/leaves.html',
+        current_user=user,
+        employees=employees,
+        pending_leaves=pending_leaves,
+        all_leaves=all_leaves,
+        success=success,
+        month_names=MONTH_NAMES,
+        sel_m=sel_m,
+        sel_y=sel_y,
+        sel_emp=sel_emp,
+        sel_status=sel_status,
+        search=search,
+        selected_employee=selected_employee,
+        available_years=available_years,
+        period_label=period_label,
+        this_month_taken_count=this_month_taken_count,
+        current_month_name=MONTH_NAMES[now.month],
+        current_month_num=now.month,
+        current_year=now.year,
+        filter_approved_count=filter_approved_count,
+        filter_pending_count=filter_pending_count,
+        filter_rejected_count=filter_rejected_count,
+        filter_unique_employees=filter_unique_employees,
+    )
+
+
+@app.route('/admin/leaves/approve/<int:id>', methods=['POST'])
+@admin_required
+def admin_approve_leave(id):
+    """Approve a leave request."""
+    models.approve_leave(id)
+    session['leave_success'] = 'Leave request approved.'
+    ref = request.referrer
+    if ref and '/admin/leaves' in ref:
+        return redirect(ref)
+    return redirect(url_for('admin_leaves'))
+
+
+@app.route('/admin/leaves/reject/<int:id>', methods=['POST'])
+@admin_required
+def admin_reject_leave(id):
+    """Reject a leave request."""
+    models.reject_leave(id)
+    session['leave_success'] = 'Leave request rejected.'
+    ref = request.referrer
+    if ref and '/admin/leaves' in ref:
+        return redirect(ref)
+    return redirect(url_for('admin_leaves'))
+
+
+@app.route('/admin/leaves/cancel/<int:id>', methods=['POST'])
+@admin_required
+def admin_cancel_leave(id):
+    """Cancel (delete) a leave request."""
+    models.delete_leave_request(id)
+    session['leave_success'] = 'Leave request cancelled successfully.'
+    ref = request.referrer
+    if ref and '/admin/leaves' in ref:
+        return redirect(ref)
+    return redirect(url_for('admin_leaves'))
+
+
+
+def parse_period_filters(request_args):
+    """Parse month, quarter, fy_year from request arguments with smart synchronization."""
+    now = datetime.now()
+    current_fy = get_fy_year(now.month, now.year)
+
+    sel_fy = request_args.get('fy_year', type=int)
+    sel_q = request_args.get('quarter', type=int)
+    sel_m = request_args.get('month', type=int)
+
+    # 1. Determine FY Year
+    fy_year = sel_fy if sel_fy is not None else current_fy
+
+    # 2. Determine Month & Quarter
+    if sel_m and 1 <= sel_m <= 12:
+        month = sel_m
+        quarter = get_quarter(month)
+    elif sel_q and 1 <= sel_q <= 4:
+        quarter = sel_q
+        month = get_quarter_months(quarter)[0]
+    else:
+        if fy_year == current_fy:
+            month = now.month
+            quarter = get_quarter(month)
+        else:
+            month = 4
+            quarter = 1
+
+    year = fy_year if month >= 4 else fy_year + 1
+
+    available_fys = []
+    for fy in range(current_fy - 3, current_fy + 2):
+        available_fys.append({
+            'year': fy,
+            'label': f"FY {fy}-{str(fy + 1)[-2:]}"
+        })
+
+    return {
+        'month': month,
+        'year': year,
+        'quarter': quarter,
+        'fy_year': fy_year,
+        'available_fys': available_fys,
+        'selected_fy': sel_fy,
+        'selected_quarter': sel_q,
+        'selected_month': sel_m,
+    }
+
+
+@app.route('/admin/employee/<int:id>')
+@admin_required
+def admin_employee_detail(id):
+    """Detailed view for a specific employee with historical month/quarter/FY filter."""
+    user = get_current_user()
+    employees_raw = models.get_all_employees()
+    employee = next((e for e in employees_raw if e['id'] == id), None)
+    if not employee:
+        return "Employee not found", 404
+
+    period = parse_period_filters(request.args)
+    month, year = period['month'], period['year']
+    quarter, fy_year = period['quarter'], period['fy_year']
+
+    tc = TEAM_CONFIG.get(employee['team_type'], {})
+    team_label = tc.get('label', employee['team_type'] or '-')
+    multiplier = employee.get('target_multiplier', 7)
+    commission_rate = int(employee.get('commission_rate', 0.20) * 100)
+
+    comm = models.get_commission_summary(id)
+
+    m_target = get_monthly_target(employee['salary'], target_multiplier=multiplier)
+    m_business = models.get_employee_business_for_month(id, month, year)
+    m_pct = get_progress_percentage(m_business, m_target)
+    m_remaining = max(0, m_target - m_business)
+
+    q_target = get_quarterly_target(employee['salary'], target_multiplier=multiplier)
+    q_business = models.get_employee_business_for_quarter(id, quarter, fy_year)
+    q_pct = get_progress_percentage(q_business, q_target)
+    q_remaining = max(0, q_target - q_business)
+
+    q_months = {
+        1: [4, 5, 6],
+        2: [7, 8, 9],
+        3: [10, 11, 12],
+        4: [1, 2, 3]
+    }[quarter]
+    
+    q_breakdown = []
+    for m in q_months:
+        y = fy_year if m >= 4 else fy_year + 1
+        b_done = models.get_employee_business_for_month(id, m, y)
+        q_breakdown.append({
+            'month_name': MONTH_NAMES[m],
+            'business': b_done,
+            'target': m_target
+        })
+
+    transactions = models.get_transactions_by_employee(id)
+    leaves = models.get_leaves_by_employee(id)
+
+    # Payout, advance & FY spillover data
+    payout_summary = models.get_employee_payout_summary(id)
+    advances = models.get_advances_by_employee(id)
+    active_advances_total = models.get_active_advances_total(id)
+    fy_spillover_summary = models.get_employee_fy_spillover_summary(id, fy_year)
+    today = datetime.now().strftime('%Y-%m-%d')
+
+    success = session.pop('emp_success', None)
+    error = session.pop('emp_error', None)
+
+    return render_template('admin/employee_detail.html',
+        current_user=user,
+        employee=employee,
+        team_label=team_label,
+        multiplier=multiplier,
+        commission_rate=commission_rate,
+        comm=comm,
+        m_target=m_target,
+        m_business=m_business,
+        m_pct=m_pct,
+        m_remaining=m_remaining,
+        q_target=q_target,
+        q_business=q_business,
+        q_pct=q_pct,
+        q_remaining=q_remaining,
+        q_breakdown=q_breakdown,
+        transactions=transactions,
+        leaves=leaves,
+        month_name=MONTH_NAMES[month],
+        year=year,
+        quarter=quarter,
+        fy_year=fy_year,
+        fy_label=get_fy_label(month, year),
+        period=period,
+        MONTH_NAMES=MONTH_NAMES,
+        success=success,
+        error=error,
+        payout_summary=payout_summary,
+        advances=advances,
+        active_advances_total=active_advances_total,
+        fy_spillover_summary=fy_spillover_summary,
+        today=today,
+    )
+
+# ---------------------------------------------------------------------------
+# COMMISSION PAYOUT ROUTES
+# ---------------------------------------------------------------------------
+
+@app.route('/admin/transactions/<int:id>/pay-employee', methods=['POST'])
+@admin_required
+def admin_pay_employee_commission(id):
+    """Mark employee commission as paid for a transaction."""
+    txn = models.get_transaction_by_id(id)
+    if not txn:
+        session['txn_error'] = 'Transaction not found.'
+        return redirect(request.referrer or url_for('admin_transactions'))
+
+    paid_date = request.form.get('paid_date', datetime.now().strftime('%Y-%m-%d'))
+    notes = request.form.get('notes', '').strip() or None
+    amount = txn['employee_commission']
+
+    models.mark_employee_commission_paid(id, txn['employee_id'], amount, paid_date, notes)
+    session['emp_success'] = f'Commission {format_inr(amount)} marked as paid.'
+    return redirect(request.referrer or url_for('admin_employee_detail', id=txn['employee_id']))
+
+
+@app.route('/admin/transactions/<int:id>/unpay-employee', methods=['POST'])
+@admin_required
+def admin_unpay_employee_commission(id):
+    """Revert employee commission payout for a transaction."""
+    txn = models.get_transaction_by_id(id)
+    if not txn:
+        session['txn_error'] = 'Transaction not found.'
+        return redirect(request.referrer or url_for('admin_transactions'))
+
+    models.mark_employee_commission_unpaid(id)
+    session['emp_success'] = 'Commission payout reverted to unpaid.'
+    return redirect(request.referrer or url_for('admin_employee_detail', id=txn['employee_id']))
+
+
+# ---------------------------------------------------------------------------
+# ADVANCE ROUTES
+# ---------------------------------------------------------------------------
+
+@app.route('/admin/employee/<int:id>/advance', methods=['POST'])
+@admin_required
+def admin_add_advance(id):
+    """Record a salary or commission advance for an employee."""
+    employee = models.get_user_by_id(id)
+    if not employee or employee['role'] != 'EMPLOYEE':
+        session['emp_error'] = 'Invalid employee.'
+        return redirect(url_for('admin_employees'))
+
+    advance_type = request.form.get('advance_type', 'SALARY')
+    amount_str = request.form.get('amount', '0')
+    advance_date = request.form.get('advance_date', datetime.now().strftime('%Y-%m-%d'))
+    reason = request.form.get('reason', '').strip() or None
+
+    if advance_type not in ('SALARY', 'COMMISSION'):
+        session['emp_error'] = 'Invalid advance type.'
+        return redirect(url_for('admin_employee_detail', id=id))
+
+    try:
+        amount = float(amount_str)
+        if amount <= 0:
+            raise ValueError
+    except ValueError:
+        session['emp_error'] = 'Invalid amount.'
+        return redirect(url_for('admin_employee_detail', id=id))
+
+    models.create_advance(id, advance_type, amount, advance_date, reason)
+    session['emp_success'] = f'{advance_type.title()} advance of {format_inr(amount)} recorded.'
+    return redirect(url_for('admin_employee_detail', id=id))
+
+
+@app.route('/admin/advance/<int:id>/settle', methods=['POST'])
+@admin_required
+def admin_settle_advance(id):
+    """Settle an advance."""
+    advance = models.get_advance_by_id(id)
+    if not advance:
+        session['emp_error'] = 'Advance not found.'
+        return redirect(request.referrer or url_for('admin_dashboard'))
+
+    models.settle_advance(id)
+    session['emp_success'] = 'Advance marked as settled.'
+    return redirect(url_for('admin_employee_detail', id=advance['employee_id']))
+
+
+@app.route('/admin/advance/<int:id>/delete', methods=['POST'])
+@admin_required
+def admin_delete_advance(id):
+    """Delete an advance record."""
+    advance = models.get_advance_by_id(id)
+    if not advance:
+        session['emp_error'] = 'Advance not found.'
+        return redirect(request.referrer or url_for('admin_dashboard'))
+
+    emp_id = advance['employee_id']
+    models.delete_advance(id)
+    session['emp_success'] = 'Advance deleted.'
+    return redirect(url_for('admin_employee_detail', id=emp_id))
+
+
+# ---------------------------------------------------------------------------
+# EMPLOYEE ROUTES
+# ---------------------------------------------------------------------------
+
+@app.route('/employee')
+@login_required
+def employee_dashboard():
+    """Employee dashboard."""
+    employee = get_current_user()
+    if employee['role'] == 'ADMIN':
+        return redirect(url_for('admin_dashboard'))
+
+    period = parse_period_filters(request.args)
+    month, year = period['month'], period['year']
+    quarter, fy_year = period['quarter'], period['fy_year']
+
+    multiplier = employee['target_multiplier']
+
+    # Commission summary
+    comm = models.get_commission_summary(employee['id'])
+
+    # Payout & advance data
+    payout_summary = models.get_employee_payout_summary(employee['id'])
+    advances = models.get_advances_by_employee(employee['id'])
+    active_advances_total = models.get_active_advances_total(employee['id'])
+
+    # Monthly target
+    m_target = get_monthly_target(employee['salary'], target_multiplier=multiplier)
+    m_business = models.get_employee_business_for_month(employee['id'], month, year)
+    m_pct = get_progress_percentage(m_business, m_target)
+    m_remaining = max(0, m_target - m_business)
+
+    # Quarterly target
+    q_target = get_quarterly_target(employee['salary'], target_multiplier=multiplier)
+    q_business = models.get_employee_business_for_quarter(
+        employee['id'], quarter, fy_year
+    )
+    q_pct = get_progress_percentage(q_business, q_target)
+    q_remaining = max(0, q_target - q_business)
+
+    # Transactions
+    transactions = models.get_transactions_by_employee(employee['id'])
+    
+    total_buyer_pending = sum((t.get('buyer_commission_amount') or 0) - (t.get('buyer_commission_received') or 0) for t in transactions)
+    total_seller_pending = sum((t.get('seller_commission_amount') or 0) - (t.get('seller_commission_received') or 0) for t in transactions)
+    total_brokerage_pending = total_buyer_pending + total_seller_pending
+
+    return render_template('employee/dashboard.html',
+        employee=employee,
+        salary_fmt=format_inr(employee['salary']),
+        pending_commission=format_inr(comm['pending']),
+        received_commission=format_inr(comm['received']),
+        current_month_name=MONTH_NAMES[month],
+        current_year=year,
+        current_quarter=quarter,
+        fy_label=get_fy_label(month, year),
+        monthly_business_fmt=format_inr(m_business),
+        monthly_target_fmt=format_inr(m_target),
+        monthly_pct=m_pct,
+        monthly_color=get_progress_color(m_pct),
+        monthly_remaining=format_inr(m_remaining),
+        quarterly_business_fmt=format_inr(q_business),
+        quarterly_target_fmt=format_inr(q_target),
+        quarterly_pct=q_pct,
+        quarterly_color=get_progress_color(q_pct),
+        quarterly_remaining=format_inr(q_remaining),
+        transactions=transactions,
+        total_brokerage_pending=format_inr(total_brokerage_pending),
+        total_buyer_pending=format_inr(total_buyer_pending),
+        total_seller_pending=format_inr(total_seller_pending),
+        month_names=MONTH_NAMES,
+        payout_summary=payout_summary,
+        advances=advances,
+        active_advances_total=active_advances_total,
+        period=period,
+        fy_year=fy_year,
+    )
+
+
+@app.route('/employee/leaves')
+@login_required
+def employee_leaves():
+    """Employee leaves page."""
+    employee = get_current_user()
+    if employee['role'] == 'ADMIN':
+        return redirect(url_for('admin_dashboard'))
+
+    now = datetime.now()
+    leave_requests = models.get_leaves_by_employee(employee['id'], limit=30)
+    leave_success = session.pop('leave_success_emp', None)
+    leave_error = session.pop('leave_error_emp', None)
+    min_leave_date = (now.date() + timedelta(days=3)).strftime('%Y-%m-%d')
+    today = now.strftime('%Y-%m-%d')
+
+    return render_template('employee/leaves.html',
+        employee=employee,
+        leave_requests=leave_requests,
+        leave_success=leave_success,
+        leave_error=leave_error,
+        tomorrow=min_leave_date,
+        today=today,
+    )
+
+
+@app.route('/employee/leave/apply', methods=['POST'])
+@login_required
+def employee_apply_leave():
+    """Apply for leave - enforces 3-day deadline rule (by 11:59 PM, 3 days prior)."""
+    employee = get_current_user()
+    if employee['role'] == 'ADMIN':
+        return redirect(url_for('admin_dashboard'))
+
+    date_str = request.form.get('date_of_leave', '').strip()
+    reason = request.form.get('reason', '').strip() or None
+
+    if not date_str:
+        session['leave_error_emp'] = 'Date of leave is required.'
+        return redirect(url_for('employee_leaves'))
+
+    try:
+        leave_date_obj = datetime.strptime(date_str, '%Y-%m-%d').date()
+    except ValueError:
+        session['leave_error_emp'] = 'Invalid date format.'
+        return redirect(url_for('employee_leaves'))
+
+    now = datetime.now()
+
+    # Deadline is 3 days prior to leave date at 11:59:59 PM
+    # e.g., Leave on Thursday (Sep 4) -> Deadline is Monday (Sep 1) 11:59:59 PM
+    deadline_date = leave_date_obj - timedelta(days=3)
+    deadline_dt = datetime.combine(deadline_date, time(23, 59, 59))
+
+    if now > deadline_dt:
+        deadline_formatted = deadline_date.strftime('%A, %d %b %Y')
+        leave_formatted = leave_date_obj.strftime('%A, %d %b %Y')
+        session['leave_error_emp'] = f'Leave for {leave_formatted} had to be applied by {deadline_formatted} 11:59 PM.'
+        models.create_leave_request(
+            employee_id=employee['id'],
+            date_of_leave=date_str,
+            reason=reason,
+            blocked=True,
+            status='REJECTED'
+        )
+        return redirect(url_for('employee_leaves'))
+
+    models.create_leave_request(
+        employee_id=employee['id'],
+        date_of_leave=date_str,
+        reason=reason,
+        blocked=False,
+        status='APPROVED'
+    )
+    session['leave_success_emp'] = 'Leave request submitted and auto-approved!'
+    return redirect(url_for('employee_leaves'))
+
+
+@app.route('/employee/leave/cancel/<int:id>', methods=['POST'])
+@login_required
+def employee_cancel_leave(id):
+    """Cancel a leave request if it belongs to the employee."""
+    employee = get_current_user()
+    if employee['role'] == 'ADMIN':
+        return redirect(url_for('admin_dashboard'))
+
+    # Basic security check: ensure the leave belongs to the current employee
+    leaves = models.get_leaves_by_employee(employee['id'], limit=100)
+    target_leave = next((l for l in leaves if l['id'] == id), None)
+
+    if not target_leave:
+        session['leave_error_emp'] = 'Leave request not found or access denied.'
+        return redirect(url_for('employee_leaves'))
+
+    # Only allow canceling APPROVED leaves
+    if target_leave['status'] != 'APPROVED':
+        session['leave_error_emp'] = 'Only approved leaves can be cancelled.'
+        return redirect(url_for('employee_leaves'))
+
+    # Optional: only allow canceling future leaves
+    if target_leave['date_of_leave'] < datetime.now().date():
+        session['leave_error_emp'] = 'Cannot cancel past leave requests.'
+        return redirect(url_for('employee_leaves'))
+
+    models.delete_leave_request(id)
+    session['leave_success_emp'] = 'Leave request cancelled successfully.'
+    return redirect(url_for('employee_leaves'))
+
+
+@app.route('/employee/change-password', methods=['POST'])
+@login_required
+@limiter.limit("5 per minute; 10 per hour")  # Prevent rapid password-change attempts
+def employee_change_password():
+    """Allow logged-in employee to change their password directly."""
+    user = get_current_user()
+    if not user:
+        return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+
+    new_password = request.form.get('new_password', '').strip()
+    confirm_password = request.form.get('confirm_password', '').strip()
+
+    if not new_password or not confirm_password:
+        return jsonify({'success': False, 'error': 'Please enter and confirm your new password.'}), 400
+
+    valid, msg = models.validate_password_strength(new_password)
+    if not valid:
+        return jsonify({'success': False, 'error': msg}), 400
+
+    if new_password != confirm_password:
+        return jsonify({'success': False, 'error': 'New passwords do not match.'}), 400
+
+    new_hash = hash_password(new_password)
+    models.update_user_password(user['id'], new_hash)
+
+    return jsonify({'success': True, 'message': 'Password updated successfully!'})
+
+
+@app.route('/employee/leaderboard')
+@login_required
+def employee_leaderboard():
+    """Employee leaderboard page with historical month/quarter/FY filter."""
+    employee = get_current_user()
+    if employee['role'] == 'ADMIN':
+        return redirect(url_for('admin_dashboard'))
+
+    period = parse_period_filters(request.args)
+    month, year = period['month'], period['year']
+    quarter, fy_year = period['quarter'], period['fy_year']
+
+    all_employees = models.get_all_employees()
+    leaderboard_monthly = []
+    leaderboard_quarterly = []
+
+    for emp in all_employees:
+        if not emp['team_type']:
+            continue
+        
+        m_target = get_monthly_target(emp['salary'], target_multiplier=emp['target_multiplier'])
+        m_business = models.get_employee_business_for_month(emp['id'], month, year)
+        m_pct = get_progress_percentage(m_business, m_target)
+        leaderboard_monthly.append({
+            'id': emp['id'],
+            'name': emp['name'],
+            'percentage': m_pct,
+            'color': get_progress_color(m_pct),
+        })
+
+        q_target = get_quarterly_target(emp['salary'], target_multiplier=emp['target_multiplier'])
+        q_business = models.get_employee_business_for_quarter(emp['id'], quarter, fy_year)
+        q_pct = get_progress_percentage(q_business, q_target)
+        leaderboard_quarterly.append({
+            'id': emp['id'],
+            'name': emp['name'],
+            'percentage': q_pct,
+            'color': get_progress_color(q_pct),
+        })
+
+    leaderboard_monthly.sort(key=lambda x: x['percentage'], reverse=True)
+    leaderboard_quarterly.sort(key=lambda x: x['percentage'], reverse=True)
+
+    return render_template('employee/leaderboard.html',
+        employee=employee,
+        period=period,
+        fy_label=get_fy_label(month, year),
+        current_month_name=MONTH_NAMES[month],
+        current_year=year,
+        current_quarter=quarter,
+        leaderboard_monthly=leaderboard_monthly,
+        leaderboard_quarterly=leaderboard_quarterly,
+    )
+
+
+@app.route('/admin/leaderboard')
+@admin_required
+def admin_leaderboard():
+    """Admin dedicated leaderboard page with historical month/quarter/FY filter."""
+    user = get_current_user()
+
+    period = parse_period_filters(request.args)
+    month, year = period['month'], period['year']
+    quarter, fy_year = period['quarter'], period['fy_year']
+
+    employees = models.get_all_employees()
+    leaderboard_monthly = []
+    leaderboard_quarterly = []
+
+    for emp in employees:
+        if not emp['team_type']:
+            continue
+        tc = TEAM_CONFIG.get(emp['team_type'], {})
+        
+        m_target = get_monthly_target(emp['salary'], target_multiplier=emp['target_multiplier'])
+        m_business = models.get_employee_business_for_month(emp['id'], month, year)
+        m_pct = get_progress_percentage(m_business, m_target)
+        leaderboard_monthly.append({
+            'id': emp['id'],
+            'name': emp['name'],
+            'team_label': tc.get('label', emp['team_type']),
+            'business_done': m_business,
+            'target': m_target,
+            'percentage': m_pct,
+            'color': get_progress_color(m_pct),
+        })
+
+        q_target = get_quarterly_target(emp['salary'], target_multiplier=emp['target_multiplier'])
+        q_business = models.get_employee_business_for_quarter(emp['id'], quarter, fy_year)
+        q_pct = get_progress_percentage(q_business, q_target)
+        leaderboard_quarterly.append({
+            'id': emp['id'],
+            'name': emp['name'],
+            'team_label': tc.get('label', emp['team_type']),
+            'business_done': q_business,
+            'target': q_target,
+            'percentage': q_pct,
+            'color': get_progress_color(q_pct),
+        })
+
+    leaderboard_monthly.sort(key=lambda x: x['percentage'], reverse=True)
+    leaderboard_quarterly.sort(key=lambda x: x['percentage'], reverse=True)
+
+    return render_template('admin/leaderboard.html',
+        current_user=user,
+        period=period,
+        fy_label=get_fy_label(month, year),
+        current_month_name=MONTH_NAMES[month],
+        current_year=year,
+        current_quarter=quarter,
+        leaderboard_monthly=leaderboard_monthly,
+        leaderboard_quarterly=leaderboard_quarterly,
+    )
+
+
+@app.route('/admin/employee/<int:id>/update', methods=['POST'])
+@admin_required
+def admin_update_employee(id):
+    """Update employee settings (salary, target multiplier, commission rate)."""
+    name = request.form.get('name', '').strip()
+    email = request.form.get('email', '').strip()
+    salary_str = request.form.get('salary', '0')
+    team_type = request.form.get('team_type', '')
+    target_multiplier_str = request.form.get('target_multiplier', '7.0')
+    commission_rate_str = request.form.get('commission_rate', '20.0')
+    new_password = request.form.get('new_password', '').strip()
+
+    # Get optional error flash location
+    success_redirect = request.form.get('success_redirect', '')
+
+    if not all([name, email, team_type]):
+        session['emp_error'] = 'Name, email and team type are required.'
+        return redirect(url_for('admin_employee_detail', id=id))
+
+    try:
+        salary = float(salary_str)
+        target_multiplier = float(target_multiplier_str)
+        commission_rate = float(commission_rate_str) / 100.0
+    except ValueError:
+        session['emp_error'] = 'Invalid numeric value(s).'
+        return redirect(url_for('admin_employee_detail', id=id))
+
+    # Check if email exists for another user
+    existing = models.get_user_by_email(email)
+    if existing and existing['id'] != id:
+        session['emp_error'] = f'Email "{email}" is already in use by another user.'
+        return redirect(url_for('admin_employee_detail', id=id))
+
+    data = {
+        'name': name,
+        'email': email,
+        'salary': salary,
+        'team_type': team_type,
+        'target_multiplier': target_multiplier,
+        'commission_rate': commission_rate
+    }
+    
+    if new_password:
+        data['password_hash'] = hash_password(new_password)
+
+    models.update_user(id, data)
+    
+    # Recalculate quarterly commissions since details changed
+    now = datetime.now()
+    quarter = get_quarter(now.month)
+    fy_year = get_fy_year(now.month, now.year)
+    models.recalculate_employee_quarterly_commissions(id, quarter, fy_year)
+
+    session['emp_success'] = 'Employee details updated successfully!'
+    return redirect(url_for('admin_employee_detail', id=id))
+
+
+@app.route('/admin/employee/<int:id>/toggle-status', methods=['POST'])
+@admin_required
+def admin_toggle_employee_status(id):
+    """Suspend or reactivate an employee profile."""
+    employee = models.get_user_by_id(id)
+    if not employee or employee['role'] == 'ADMIN':
+        session['emp_error'] = 'Cannot modify status of admin or non-existent user.'
+        return redirect(url_for('admin_employees'))
+
+    current_status = employee.get('is_active', 1)
+    new_status = 0 if (current_status == 1 or current_status is None) else 1
+    models.update_user_status(id, new_status)
+
+    status_str = "reactivated" if new_status == 1 else "deactivated"
+    session['emp_success'] = f'Employee {employee["name"]} has been {status_str} successfully.'
+    return redirect(url_for('admin_employee_detail', id=id))
+
+
+@app.route('/admin/employee/<int:id>/delete', methods=['POST'])
+@admin_required
+def admin_delete_employee(id):
+    """Delete an employee and all their associated records."""
+    employee = models.get_user_by_id(id)
+    if not employee or employee['role'] == 'ADMIN':
+        session['emp_error'] = 'Cannot delete admin or non-existent user.'
+        return redirect(url_for('admin_employees'))
+        
+    models.delete_user(id)
+    session['emp_success'] = f'Employee {employee["name"]} deleted successfully.'
+    return redirect(url_for('admin_employees'))
+
+
+@app.route('/admin/transactions/<int:id>/delete', methods=['POST'])
+@admin_required
+def admin_delete_transaction(id):
+    """Delete a transaction."""
+    txn = models.get_transaction_by_id(id)
+    if txn:
+        models.delete_transaction(id)
+        fy_year = get_fy_year(txn['month'], txn['year'])
+        models.recalculate_employee_quarterly_commissions(txn['employee_id'], txn['quarter'], fy_year)
+        session['txn_success'] = 'Transaction deleted successfully.'
+    else:
+        session['txn_error'] = 'Transaction not found.'
+    return redirect(url_for('admin_transactions'))
+
+# ---------------------------------------------------------------------------
+# Run
+# ---------------------------------------------------------------------------
+
+if __name__ == '__main__':
+    app.run(debug=True, host='0.0.0.0', port=5000)
+

@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+
+{% block title %}My Leaves — Cityscope{% endblock %}
+
+{% block body %}
+<!-- Top Nav -->
+<div class="topnav">
+    <div class="brand" style="padding: 0; display: flex; align-items: center;">
+        <img src="{{ url_for('static', filename='images/logo.png') }}" alt="Cityscope Logo" style="height: 30px; object-fit: contain;">
+    </div>
+    <div class="nav-links">
+        <a href="{{ url_for('employee_dashboard') }}" class="{% if request.path == '/employee' %}active{% endif %}">Dashboard</a>
+        <a href="{{ url_for('employee_leaderboard') }}" class="{% if request.path == '/employee/leaderboard' %}active{% endif %}">Leaderboard</a>
+        <a href="{{ url_for('employee_leaves') }}" class="{% if request.path == '/employee/leaves' %}active{% endif %}">Leaves</a>
+        <button type="button" onclick="openChangePasswordModal()" style="background: var(--bg); border: 1px solid var(--border); color: var(--text-muted); border-radius: 6px; padding: 6px 12px; font-size: 0.82rem; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.2s;" onmouseover="this.style.background='var(--border)'" onmouseout="this.style.background='var(--bg)'" title="Change your password">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+            Change Password
+        </button>
+        <form method="POST" action="{{ url_for('logout') }}" style="margin:0; display:flex; align-items:center;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" style="background:none; border:none; color: var(--text-muted); cursor:pointer; padding: 6px 12px; transition: 0.2s;" title="Logout" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--text-muted)'">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+            </button>
+        </form>
+    </div>
+</div>
+
+{% include "employee/_change_password_modal.html" %}
+
+<div class="emp-container">
+
+    <!-- Apply for Leave Form -->
+    <div class="card">
+        <div class="card-title">Apply for Leave</div>
+
+        {% if leave_success %}
+        <div class="alert-success">{{ leave_success }}</div>
+        {% endif %}
+        {% if leave_error %}
+        <div class="alert-error">{{ leave_error }}</div>
+        {% endif %}
+
+        <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 12px 16px; margin-bottom: 16px; font-size: 0.82rem; color: #1e40af; line-height: 1.5;">
+            <strong>ℹ️ Leave Rule:</strong> Must apply at least 3 calendar days prior (by <strong>11:59 PM</strong>).
+            <br><span style="font-size: 0.78rem; opacity: 0.9;">Example: To take leave on Thursday, you must apply by Monday 11:59 PM.</span>
+        </div>
+
+        <form method="POST" action="{{ url_for('employee_apply_leave') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="mb-3">
+                <label class="form-label" style="font-size:0.85rem; font-weight:600;">Date of Leave</label>
+                <input type="date" class="form-control" name="date_of_leave" required
+                       min="{{ tomorrow }}">
+            </div>
+            <div class="mb-3">
+                <label class="form-label" style="font-size:0.85rem; font-weight:600;">Reason (optional)</label>
+                <textarea class="form-control" name="reason" rows="3"
+                          placeholder="e.g. medical appointment, personal work"></textarea>
+            </div>
+            <button type="submit" class="btn btn-primary w-100">Apply for Leave</button>
+        </form>
+    </div>
+
+    <!-- My Leave Requests -->
+    <div class="card">
+        <div class="card-title">My Leave History</div>
+        {% if leave_requests|length > 0 %}
+            {% for lr in leave_requests %}
+            <div class="leave-item" style="padding: 12px 0; border-bottom: 1px solid var(--border);">
+                <div class="leave-header" style="display: flex; justify-content: space-between; align-items: center;">
+                    <span class="leave-date" style="font-weight: 600; font-size: 0.9rem;">{{ lr.date_of_leave.strftime('%A, %d %b %Y') }}</span>
+                    {% if lr.status == 'PENDING' %}
+                        <span class="badge-pending">PENDING</span>
+                    {% elif lr.status == 'APPROVED' %}
+                        <span class="badge-approved">APPROVED</span>
+                    {% else %}
+                        <span class="badge-rejected">REJECTED</span>
+                    {% endif %}
+                </div>
+                {% if lr.reason %}
+                <div class="leave-reason" style="font-size: 0.8rem; color: var(--text-muted); margin-top: 4px;">{{ lr.reason }}</div>
+                {% endif %}
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 4px;">
+                    <div style="font-size: 0.75rem; color: #475569;">Applied on: <strong>{{ lr.applied_on.strftime('%A, %d %b %Y') if lr.applied_on else '—' }}</strong>{% if lr.applied_on %} <span style="font-size: 0.7rem; color: var(--text-muted);">({{ lr.applied_on.strftime('%I:%M %p') }})</span>{% endif %}</div>
+                    {% if lr.status == 'APPROVED' and lr.date_of_leave.strftime('%Y-%m-%d') >= today %}
+                    <form action="{{ url_for('employee_cancel_leave', id=lr.id) }}" method="POST" style="margin:0;" onsubmit="return confirm('Are you sure you want to cancel this leave?');">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="btn btn-secondary" style="padding: 2px 8px; font-size: 0.7rem; border-radius: 4px; background: #ef4444; border: none; cursor: pointer;">Cancel</button>
+                    </form>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <p class="text-muted-custom" style="font-size:0.85rem; padding:8px 0; text-align: center;">No leave requests yet.</p>
+        {% endif %}
+    </div>
+
+</div>
+{% endblock %}

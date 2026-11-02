@@ -43,6 +43,11 @@ def get_current_user():
     # Import here to avoid circular imports
     from models import get_user_by_id
     user = get_user_by_id(user_id)
+    # Terminate session immediately if employee is deactivated
+    if user and user.get('role') != 'ADMIN' and user.get('is_active') is not None and not user['is_active']:
+        session.clear()
+        g._current_user = None
+        return None
     g._current_user = user
     return user
 

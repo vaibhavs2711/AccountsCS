@@ -1,0 +1,1137 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Transactions — Cityscope Admin{% endblock %}
+
+{% block content %}
+<style>
+    .btn-period-mode {
+        border: none;
+        background: transparent;
+        padding: 6px 14px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: var(--text-muted);
+        border-radius: 6px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    .btn-period-mode:hover {
+        color: var(--text);
+    }
+    .btn-period-mode.active {
+        background: #ffffff;
+        color: var(--primary);
+        box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+    }
+    .filter-chip-select {
+        font-size: 0.82rem;
+        font-weight: 600;
+        padding: 6px 12px;
+        height: 36px;
+        border-radius: 6px;
+        background-color: #fff;
+        border: 1px solid #cbd5e1;
+        cursor: pointer;
+    }
+    .export-dropdown-menu {
+        display: none;
+        position: absolute;
+        right: 0;
+        top: 100%;
+        margin-top: 4px;
+        background: #ffffff;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        box-shadow: 0 10px 25px -5px rgba(0,0,0,0.15), 0 8px 10px -6px rgba(0,0,0,0.1);
+        z-index: 1000;
+        min-width: 240px;
+        padding: 6px 0;
+    }
+    .export-dropdown-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 16px;
+        font-size: 0.82rem;
+        color: var(--text);
+        text-decoration: none;
+        cursor: pointer;
+        transition: background 0.15s;
+    }
+    .export-dropdown-item:hover {
+        background: #f1f5f9;
+        color: var(--primary);
+    }
+</style>
+
+<div class="page-header">
+    <div>
+        <h2 style="color:var(--text);">Property Transactions</h2>
+        <div class="page-meta" style="margin-top:4px;">Manage all your property transactions in one place.</div>
+    </div>
+    <div class="d-flex gap-2 no-pdf">
+        <div class="dropdown-wrapper" style="position: relative; display: inline-flex;">
+            <button class="btn btn-secondary" id="exportExcelBtn" onclick="exportTransactionsExcel()" style="display: flex; align-items: center; gap: 6px; padding: 10px 14px; font-weight: 600; border-radius: 8px 0 0 8px; border-right: 1px solid rgba(0,0,0,0.1);">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="9" y1="21" x2="9" y2="9"></line></svg>
+                Export Excel
+            </button>
+            <button type="button" class="btn btn-secondary" onclick="toggleExportMenu(event)" style="padding: 10px 10px; border-radius: 0 8px 8px 0;" title="More Export Options">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+            </button>
+            <div id="exportMenuDropdown" class="export-dropdown-menu">
+                <div style="padding: 6px 14px; font-size: 0.72rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Export Reports</div>
+                <a class="export-dropdown-item" href="javascript:void(0)" onclick="exportTransactionsExcel(); closeExportMenu();">
+                    <span>📊</span> Export Current View ({{ period_label }})
+                </a>
+                <a class="export-dropdown-item" href="{{ url_for('admin_export_transactions', period_type='month', month=month, fy_year=fy_year) }}">
+                    <span>📅</span> Export {{ month_names[month] }} {{ cal_year }}
+                </a>
+                <a class="export-dropdown-item" href="{{ url_for('admin_export_transactions', period_type='quarter', quarter=quarter, fy_year=fy_year) }}">
+                    <span>📈</span> Export Q{{ quarter }} (FY {{ fy_year }}-{{ (fy_year + 1)|string|truncate(2, True, '') }})
+                </a>
+                <a class="export-dropdown-item" href="{{ url_for('admin_export_transactions', period_type='fy', fy_year=fy_year) }}">
+                    <span>🏛️</span> Export Full FY {{ fy_year }}-{{ (fy_year + 1)|string|truncate(2, True, '') }}
+                </a>
+                <a class="export-dropdown-item" href="{{ url_for('admin_export_transactions', period_type='all') }}">
+                    <span>📁</span> Export All Time Deals
+                </a>
+            </div>
+        </div>
+        <button class="btn btn-primary" style="padding:10px 16px; font-weight:600; border-radius:8px;" onclick="openAddModal()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px; margin-bottom:-2px;"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+            Add Transaction
+        </button>
+    </div>
+</div>
+
+<!-- Add Transaction Form Modal -->
+<div class="modal-overlay no-pdf" id="transactionModal">
+    <div class="modal-content">
+        <div class="card" style="margin-bottom: 0; border: none; box-shadow: none;">
+            <div class="card-title" style="display: flex; justify-content: space-between;">
+                <span id="form-title">Add New Transaction</span>
+                <span style="cursor: pointer; font-size: 1.2rem; color: var(--text-muted);" onclick="closeModal()">✕</span>
+            </div>
+
+    {% if success %}
+    <div class="alert-success">{{ success }}</div>
+    {% endif %}
+    {% if error %}
+    <div class="alert-error">{{ error }}</div>
+    {% endif %}
+
+    <form id="transaction-form" method="POST" action="{{ url_for('admin_add_transaction') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="transaction_id" id="transaction_id" value="">
+        <div class="d-flex gap-3 mb-3 form-row-custom">
+            <div style="flex:1;">
+                <label class="form-label" style="font-size:0.85rem; font-weight:600;">Employee</label>
+                <input type="hidden" name="employee_id" id="hidden_employee_id">
+                <div class="custom-select-wrapper" style="position: relative;">
+                    <div class="form-control" id="custom-select-display" style="cursor: pointer; display: flex; align-items: center; justify-content: space-between;" onclick="toggleEmpDropdown(event)">
+                        <span id="selected-employee-text" style="color: var(--text-muted);">— Select Employee —</span>
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+                    </div>
+                    <div id="employee-options" style="display: none; position: absolute; top: 100%; left: 0; right: 0; background: #fff; border: 1px solid #e2e8f0; border-radius: 6px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05); z-index: 100; margin-top: 4px; overflow: hidden;">
+                        <div style="padding: 8px; border-bottom: 1px solid #f1f5f9; background: #f8fafc;">
+                            <div style="position: relative; display: flex; align-items: center;">
+                                <svg style="position: absolute; left: 10px; color: #94a3b8; pointer-events: none;" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <circle cx="11" cy="11" r="8"></circle>
+                                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                                </svg>
+                                <input type="text" id="employee-search-input" class="form-control" placeholder="Search employee..." style="padding: 6px 10px 6px 32px; font-size: 0.85rem; width: 100%; box-sizing: border-box; border: 1px solid #cbd5e1; border-radius: 6px; outline: none; background: #ffffff;" onclick="event.stopPropagation()" oninput="filterEmployees(this.value)" onkeydown="if(event.key === 'Escape') { document.getElementById('employee-options').style.display = 'none'; }" autocomplete="off">
+                            </div>
+                        </div>
+                        <div id="employee-options-list" style="max-height: 200px; overflow-y: auto;">
+                            {% for emp in employees %}
+                            {% set bg = '#e2e8f0' %}
+                            {% set color = '#475569' %}
+                            {% set label = emp.team_type|replace('_', ' ')|title %}
+                            {% if emp.team_type == 'CORE_TEAM' %}
+                                {% set bg = '#fef08a' %}{% set color = '#854d0e' %}
+                            {% elif emp.team_type == 'NORMAL_TEAM' %}
+                                {% set bg = '#bfdbfe' %}{% set color = '#1e40af' %}
+                            {% elif emp.team_type == 'RENT_TEAM' %}
+                                {% set bg = '#bbf7d0' %}{% set color = '#166534' %}
+                            {% endif %}
+                            <div class="emp-option" data-name="{{ emp.name|lower }}" style="padding: 10px 12px; cursor: pointer; border-bottom: 1px solid #f1f5f9; display: flex; align-items: center; justify-content: space-between; gap: 8px;" onclick="selectEmployee('{{ emp.id }}', '{{ emp.name }}', '{{ bg }}', '{{ color }}', '{{ label }}')" onmouseover="this.style.backgroundColor='#f8fafc'" onmouseout="this.style.backgroundColor='transparent'">
+                                <strong>{{ emp.name }}</strong>
+                                <span style="background-color: {{ bg }}; color: {{ color }}; padding: 2px 8px; border-radius: 12px; font-size: 0.7rem; font-weight: 600;">{{ label }}</span>
+                            </div>
+                            {% endfor %}
+                            <div id="no-employee-found" style="display: none; padding: 14px 12px; text-align: center; color: #94a3b8; font-size: 0.85rem;">
+                                No employees found
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div style="flex:1;">
+                <label class="form-label" style="font-size:0.85rem; font-weight:600;">Property ID</label>
+                <input type="text" class="form-control" name="property_id" required placeholder="CSID-2025-001"
+                    value="{{ request.form.get('property_id', '') }}">
+            </div>
+        </div>
+        <div class="d-flex gap-3 mb-3 form-row-custom">
+            <div style="flex:1;">
+                <label class="form-label" style="font-size:0.85rem; font-weight:600;">Property Name</label>
+                <input type="text" class="form-control" name="property_name" required
+                    value="{{ request.form.get('property_name', '') }}">
+            </div>
+            <div style="flex:1;">
+                <div class="d-flex gap-3 form-row-custom">
+                    <div style="flex:1;">
+                        <label class="form-label" style="font-size:0.85rem; font-weight:600;">Basic Price of Property ₹</label>
+                        <input type="number" class="form-control" name="basic_price" min="0" step="1" placeholder="0"
+                            value="{{ request.form.get('basic_price', '') }}">
+                    </div>
+                    <div style="flex:1;">
+                        <label class="form-label" style="font-size:0.85rem; font-weight:600;">Date of Deal</label>
+                        <input type="date" class="form-control" name="transaction_date" required
+                            value="{{ request.form.get('transaction_date', '') }}">
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- Buyer & Seller Name + Broker Checkboxes -->
+        <div class="d-flex gap-3 mb-3 form-row-custom">
+            <div style="flex:1;">
+                <label class="form-label" style="font-size:0.85rem; font-weight:600;">Buyer Name</label>
+                <div style="display:flex; gap:8px; align-items:center;">
+                    <input type="text" class="form-control" name="buyer_name" placeholder="Buyer Name" value="{{ request.form.get('buyer_name', '') }}">
+                    <label style="font-size:0.75rem; font-weight:600; white-space:nowrap; display:flex; align-items:center; gap:4px; margin:0; cursor:pointer; background:#f1f5f9; padding:6px 10px; border-radius:6px; border:1px solid #cbd5e1;" title="Check if Buyer side deal is with another Broker">
+                        <input type="checkbox" name="buyer_is_broker" value="1" {% if request.form.get('buyer_is_broker') %}checked{% endif %}> Broker
+                    </label>
+                </div>
+            </div>
+            <div style="flex:1;">
+                <label class="form-label" style="font-size:0.85rem; font-weight:600;">Seller Name</label>
+                <div style="display:flex; gap:8px; align-items:center;">
+                    <input type="text" class="form-control" name="seller_name" placeholder="Seller Name" value="{{ request.form.get('seller_name', '') }}">
+                    <label style="font-size:0.75rem; font-weight:600; white-space:nowrap; display:flex; align-items:center; gap:4px; margin:0; cursor:pointer; background:#f1f5f9; padding:6px 10px; border-radius:6px; border:1px solid #cbd5e1;" title="Check if Seller side deal is with another Broker">
+                        <input type="checkbox" name="seller_is_broker" value="1" {% if request.form.get('seller_is_broker') %}checked{% endif %}> Broker
+                    </label>
+                </div>
+            </div>
+        </div>
+        <div class="d-flex gap-3 mb-3 form-row-custom">
+            <div style="flex:1;">
+                <label class="form-label" style="font-size:0.85rem; font-weight:600;">Total Company Brokerage ₹</label>
+                <input type="number" class="form-control" name="cityscope_commission" required min="0" step="1"
+                    value="{{ request.form.get('cityscope_commission', '') }}" readonly style="background-color: #f1f5f9; cursor: not-allowed;">
+            </div>
+            <div style="flex:1;">
+                <div class="d-flex gap-3 form-row-custom">
+                    <div style="flex:1;">
+                        <label class="form-label" style="font-size:0.85rem; font-weight:600;">Buyer Brokerage (Total) ₹</label>
+                        <input type="number" class="form-control" name="buyer_commission_amount" min="0" step="1"
+                            value="{{ request.form.get('buyer_commission_amount', '') }}" oninput="updateTotalCommission()">
+                    </div>
+                    <div style="flex:1;">
+                        <label class="form-label" style="font-size:0.85rem; font-weight:600;">Seller Brokerage (Total) ₹</label>
+                        <input type="number" class="form-control" name="seller_commission_amount" min="0" step="1"
+                            value="{{ request.form.get('seller_commission_amount', '') }}" oninput="updateTotalCommission()">
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- Buyer Payment Portions (Installments) -->
+        <div class="mb-3" style="border: 1px solid var(--border); border-radius: 8px; padding: 16px; background-color: #f8fafc;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                <label class="form-label" style="font-size:0.85rem; font-weight:700; color:var(--text); margin:0;">Buyer Brokerage Installment Portions</label>
+                <button type="button" class="btn btn-secondary" onclick="addPaymentRow('BUYER')" style="padding: 4px 8px; font-size: 0.75rem; border-radius: 4px; background-color: #e2e8f0; color: #475569; border: none; font-weight: 600; cursor: pointer;">+ Add Portion</button>
+            </div>
+            <div id="buyer-payments-container">
+                <!-- Rows added dynamically -->
+            </div>
+        </div>
+
+        <!-- Seller Payment Portions (Installments) -->
+        <div class="mb-3" style="border: 1px solid var(--border); border-radius: 8px; padding: 16px; background-color: #f8fafc;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                <label class="form-label" style="font-size:0.85rem; font-weight:700; color:var(--text); margin:0;">Seller Brokerage Installment Portions</label>
+                <button type="button" class="btn btn-secondary" onclick="addPaymentRow('SELLER')" style="padding: 4px 8px; font-size: 0.75rem; border-radius: 4px; background-color: #e2e8f0; color: #475569; border: none; font-weight: 600; cursor: pointer;">+ Add Portion</button>
+            </div>
+            <div id="seller-payments-container">
+                <!-- Rows added dynamically -->
+            </div>
+        </div>
+        <div class="mb-3 d-flex gap-3">
+            <div class="form-check" style="flex:1;">
+                <input class="form-check-input" type="checkbox" id="buyer_gst_applied" name="buyer_gst_applied" value="1" {% if request.form.get('buyer_gst_applied') %}checked{% endif %} onchange="updateTotalCommission()">
+                <label class="form-check-label" for="buyer_gst_applied" style="font-size:0.85rem;">
+                    Apply GST (6%) on Buyer Brokerage
+                </label>
+            </div>
+            <div class="form-check" style="flex:1;">
+                <input class="form-check-input" type="checkbox" id="seller_gst_applied" name="seller_gst_applied" value="1" {% if request.form.get('seller_gst_applied') %}checked{% endif %} onchange="updateTotalCommission()">
+                <label class="form-check-label" for="seller_gst_applied" style="font-size:0.85rem;">
+                    Apply GST (6%) on Seller Brokerage
+                </label>
+            </div>
+        </div>
+
+        <!-- Manual Admin Override Section -->
+        <div style="background: #f8fafc; border: 1px dashed var(--border); border-radius: 8px; padding: 14px; margin-bottom: 16px;">
+            <label class="form-label" style="font-size:0.82rem; font-weight:700; color:var(--primary); margin-bottom: 8px; display:block;">
+                ⚙️ Manual Admin Override (Optional)
+            </label>
+            <div class="d-flex gap-3 form-row-custom">
+                <div style="flex:1;">
+                    <label class="form-label" style="font-size:0.78rem; font-weight:600; color:var(--text-muted);">Custom Comm Rate (%)</label>
+                    <input type="number" class="form-control" name="custom_commission_rate" min="0" max="100" step="0.1" placeholder="e.g. 25 for 25%" style="font-size:0.85rem;">
+                </div>
+                <div style="flex:1;">
+                    <label class="form-label" style="font-size:0.78rem; font-weight:600; color:var(--text-muted);">Fixed Commission (₹)</label>
+                    <input type="number" class="form-control" name="custom_employee_commission" min="0" step="1" placeholder="e.g. 50000" style="font-size:0.85rem;">
+                </div>
+            </div>
+            <span style="font-size: 0.72rem; color: var(--text-muted); margin-top: 6px; display: block;">
+                Leave blank to automatically calculate using employee's standard rate & target achievement.
+            </span>
+        </div>
+
+        <div class="alert-info">
+            <strong>How calculation works:</strong><br>
+            Net Received Brokerage = (Buyer Received - 6% if GST) + (Seller Received - 6% if GST)<br>
+            Commission = Net Received Brokerage × team rate (Core: 30%, Normal/Rent: 20%)
+        </div>
+
+        <div style="text-align: right; margin-top: 16px;">
+            <button type="button" class="btn btn-secondary" onclick="closeModal()" style="margin-right: 8px;">Cancel</button>
+            <button type="submit" class="btn btn-primary" id="form-submit-btn">Add Transaction</button>
+        </div>
+    </form>
+        </div>
+    </div>
+</div>
+
+<!-- Filter & Period Bar -->
+<div class="card no-pdf" style="margin-bottom: 20px; padding: 16px 20px; background: #ffffff; border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+    <form method="GET" action="{{ url_for('admin_transactions') }}" id="periodFilterForm" style="margin: 0;">
+        <input type="hidden" name="period_type" id="periodTypeInput" value="{{ period_type }}">
+        
+        <!-- Filter Header -->
+        <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid #f1f5f9;">
+            <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                <span style="font-weight: 700; font-size: 0.9rem; color: var(--primary); display: flex; align-items: center; gap: 6px;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg>
+                    Filter Transactions:
+                </span>
+                <span style="font-size: 0.85rem; color: var(--text);">
+                    Showing: <strong style="color: var(--accent);">{{ period_label }}</strong>
+                    {% if selected_employee %}
+                    • Employee: <strong style="color: var(--primary);">{{ selected_employee.name }}</strong>
+                    {% endif %}
+                </span>
+                <span class="badge" style="background: #e0f2fe; color: #0369a1; font-weight: 600; padding: 3px 10px; border-radius: 20px; font-size: 0.75rem;">
+                    {{ transactions|length }} Deals
+                </span>
+            </div>
+
+            <!-- Segmented Filter Mode Buttons -->
+            <div style="display: flex; background: #f1f5f9; padding: 3px; border-radius: 8px; gap: 4px;">
+                <button type="button" class="btn-period-mode {% if period_type == 'all' %}active{% endif %}" onclick="setPeriodMode('all')">All Time</button>
+                <button type="button" class="btn-period-mode {% if period_type == 'quarter' %}active{% endif %}" onclick="setPeriodMode('quarter')">Quarter Wise</button>
+                <button type="button" class="btn-period-mode {% if period_type == 'month' %}active{% endif %}" onclick="setPeriodMode('month')">Month Wise</button>
+                <button type="button" class="btn-period-mode {% if period_type == 'fy' %}active{% endif %}" onclick="setPeriodMode('fy')">Full FY</button>
+            </div>
+        </div>
+
+        <!-- Filter Controls Row -->
+        <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
+            <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                <!-- Financial Year (shown when not all time) -->
+                <div id="fy-filter-wrap" style="display: {% if period_type == 'all' %}none{% else %}flex{% endif %}; align-items: center; gap: 6px;">
+                    <label style="font-size: 0.8rem; font-weight: 600; color: var(--text-muted); margin: 0;">FY:</label>
+                    <select name="fy_year" id="filter_fy_year" class="form-select filter-chip-select" onchange="this.form.submit()" style="min-width: 125px;">
+                        {% for fy in available_fys %}
+                        <option value="{{ fy.year }}" {% if fy_year == fy.year %}selected{% endif %}>{{ fy.label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Quarter Dropdown (shown when period_type == 'quarter') -->
+                <div id="quarter-filter-wrap" style="display: {% if period_type == 'quarter' %}flex{% else %}none{% endif %}; align-items: center; gap: 6px;">
+                    <label style="font-size: 0.8rem; font-weight: 600; color: var(--text-muted); margin: 0;">Quarter:</label>
+                    <select name="quarter" id="filter_quarter" class="form-select filter-chip-select" onchange="this.form.submit()" style="min-width: 135px;">
+                        <option value="1" {% if quarter == 1 %}selected{% endif %}>Q1 (Apr - Jun)</option>
+                        <option value="2" {% if quarter == 2 %}selected{% endif %}>Q2 (Jul - Sep)</option>
+                        <option value="3" {% if quarter == 3 %}selected{% endif %}>Q3 (Oct - Dec)</option>
+                        <option value="4" {% if quarter == 4 %}selected{% endif %}>Q4 (Jan - Mar)</option>
+                    </select>
+                </div>
+
+                <!-- Month Dropdown (shown when period_type == 'month') -->
+                <div id="month-filter-wrap" style="display: {% if period_type == 'month' %}flex{% else %}none{% endif %}; align-items: center; gap: 6px;">
+                    <label style="font-size: 0.8rem; font-weight: 600; color: var(--text-muted); margin: 0;">Month:</label>
+                    <select name="month" id="filter_month" class="form-select filter-chip-select" onchange="this.form.submit()" style="min-width: 125px;">
+                        <option value="4" {% if month == 4 %}selected{% endif %}>April</option>
+                        <option value="5" {% if month == 5 %}selected{% endif %}>May</option>
+                        <option value="6" {% if month == 6 %}selected{% endif %}>June</option>
+                        <option value="7" {% if month == 7 %}selected{% endif %}>July</option>
+                        <option value="8" {% if month == 8 %}selected{% endif %}>August</option>
+                        <option value="9" {% if month == 9 %}selected{% endif %}>September</option>
+                        <option value="10" {% if month == 10 %}selected{% endif %}>October</option>
+                        <option value="11" {% if month == 11 %}selected{% endif %}>November</option>
+                        <option value="12" {% if month == 12 %}selected{% endif %}>December</option>
+                        <option value="1" {% if month == 1 %}selected{% endif %}>January</option>
+                        <option value="2" {% if month == 2 %}selected{% endif %}>February</option>
+                        <option value="3" {% if month == 3 %}selected{% endif %}>March</option>
+                    </select>
+                </div>
+
+                <!-- Employee Filter Dropdown -->
+                <div style="display: flex; align-items: center; gap: 6px;">
+                    <label style="font-size: 0.8rem; font-weight: 600; color: var(--text-muted); margin: 0;">Employee:</label>
+                    <select name="employee_id" class="form-select filter-chip-select" onchange="this.form.submit()" style="min-width: 140px;">
+                        <option value="">All Employees</option>
+                        {% for emp in employees %}
+                        <option value="{{ emp.id }}" {% if sel_emp == emp.id %}selected{% endif %}>{{ emp.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Preserve sort -->
+                <input type="hidden" name="sort" value="{{ current_sort }}">
+
+                {% if period_type != 'all' or sel_emp %}
+                <a href="{{ url_for('admin_transactions') }}" style="font-size: 0.8rem; font-weight: 600; color: var(--accent); text-decoration: none; padding: 6px 12px; background: #eff6ff; border-radius: 6px; border: 1px solid #bfdbfe; display: flex; align-items: center; gap: 4px;">
+                    ↺ Reset Filters
+                </a>
+                {% endif %}
+            </div>
+
+            <!-- Export Excel Quick Action in Filter Bar -->
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <button type="button" class="btn btn-secondary" onclick="exportTransactionsExcel()" style="display: flex; align-items: center; gap: 6px; padding: 7px 14px; font-size: 0.82rem; font-weight: 600; border-radius: 6px; background: #f8fafc; border: 1px solid #cbd5e1; color: #1e293b; cursor: pointer;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="9" y1="21" x2="9" y2="9"></line></svg>
+                    Export {{ period_label }} to Excel
+                </button>
+            </div>
+        </div>
+
+        <!-- Filtered Summary KPI Strip -->
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-top: 14px; padding-top: 12px; border-top: 1px solid #f1f5f9;">
+            <div style="background: #f8fafc; padding: 8px 12px; border-radius: 8px; border: 1px solid #e2e8f0;">
+                <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; font-weight: 600;">Total Deals</div>
+                <div style="font-size: 1.1rem; font-weight: 700; color: var(--text);">{{ summary_stats.count }}</div>
+            </div>
+            <div style="background: #f8fafc; padding: 8px 12px; border-radius: 8px; border: 1px solid #e2e8f0;">
+                <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; font-weight: 600;">Property Volume</div>
+                <div style="font-size: 1.05rem; font-weight: 700; color: var(--primary);">{{ format_inr(summary_stats.basic_price) }}</div>
+            </div>
+            <div style="background: #f8fafc; padding: 8px 12px; border-radius: 8px; border: 1px solid #e2e8f0;">
+                <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; font-weight: 600;">Gross Brokerage</div>
+                <div style="font-size: 1.05rem; font-weight: 700; color: #2563eb;">{{ format_inr(summary_stats.brokerage) }}</div>
+            </div>
+            <div style="background: #f8fafc; padding: 8px 12px; border-radius: 8px; border: 1px solid #e2e8f0;">
+                <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; font-weight: 600;">Employee Commission</div>
+                <div style="font-size: 1.05rem; font-weight: 700; color: #7c3aed;">{{ format_inr(summary_stats.employee_commission) }}</div>
+            </div>
+            <div style="background: #f8fafc; padding: 8px 12px; border-radius: 8px; border: 1px solid #e2e8f0;">
+                <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; font-weight: 600;">Brokerage Received</div>
+                <div style="font-size: 1.05rem; font-weight: 700; color: #166534;">{{ format_inr(summary_stats.collected) }}</div>
+            </div>
+            <div style="background: #f8fafc; padding: 8px 12px; border-radius: 8px; border: 1px solid #e2e8f0;">
+                <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; font-weight: 600;">Brokerage Pending</div>
+                <div style="font-size: 1.05rem; font-weight: 700; color: #d97706;">{{ format_inr(summary_stats.pending) }}</div>
+            </div>
+        </div>
+    </form>
+</div>
+
+<!-- All Transactions Table -->
+<div class="card">
+    <div class="card-title card-header-responsive">
+        <span>Transactions ({{ transactions|length }}) <span style="font-size: 0.85rem; font-weight: 500; color: var(--text-muted);">— {{ period_label }}</span></span>
+        
+        <div class="search-input-wrapper no-pdf">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%);"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+            <input type="text" id="transactionSearch" placeholder="Search by CSID, Employee, Client..." 
+                   class="form-control" style="border-radius: 8px; font-size: 0.85rem; padding-left: 36px; padding-block: 6px;"
+                   onkeyup="filterTransactions()">
+        </div>
+
+        <form class="no-pdf" method="GET" action="{{ url_for('admin_transactions') }}" style="display: flex; align-items: center; gap: 8px; margin: 0;">
+            <input type="hidden" name="period_type" value="{{ period_type }}">
+            <input type="hidden" name="fy_year" value="{{ fy_year }}">
+            <input type="hidden" name="quarter" value="{{ quarter }}">
+            <input type="hidden" name="month" value="{{ month }}">
+            {% if sel_emp %}<input type="hidden" name="employee_id" value="{{ sel_emp }}">{% endif %}
+            <label for="sort" style="font-size: 0.85rem; font-weight: 600; color: var(--text-muted); margin: 0; white-space: nowrap;">Sort by:</label>
+            <select name="sort" id="sort" class="form-select" style="width: auto; padding-block: 4px; font-size: 0.85rem;" onchange="this.form.submit()">
+                <option value="added" {% if current_sort == 'added' %}selected{% endif %}>Latest Added</option>
+                <option value="date" {% if current_sort == 'date' %}selected{% endif %}>Date Wise</option>
+                <option value="updated" {% if current_sort == 'updated' %}selected{% endif %}>Latest Updated</option>
+            </select>
+        </form>
+    </div>
+    {% if transactions|length > 0 %}
+    <div class="table-responsive table-responsive-stack">
+        <table class="table mb-0" id="transactionsTable">
+            <thead>
+                <tr>
+                    <th style="white-space: nowrap;">Date</th>
+                    <th style="max-width: 150px;">Property</th>
+                    <th style="white-space: nowrap;">CSID</th>
+                    <th style="white-space: nowrap;">Employee</th>
+                    <th>GST</th>
+                    <th style="white-space: nowrap;">Brokerage</th>
+                    <th style="white-space: nowrap;">Commission</th>
+                    <th style="white-space: nowrap;">Buyer ₹</th>
+                    <th style="white-space: nowrap;">Seller ₹</th>
+                    <th>Status</th>
+                    <th class="no-pdf" style="white-space: nowrap;">Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for t in transactions %}
+                <tr>
+                    <td data-label="Date" style="color:var(--text-muted); white-space: nowrap;">{{ t.transaction_date.strftime('%d %b %Y') if t.transaction_date else '—' }}</td>
+                    <td data-label="Property">
+                        <div style="display:flex; align-items:center;">
+                            <strong style="color:var(--primary); font-size:0.8rem; word-break: break-word;">{{ t.property_name }}</strong>
+                        </div>
+                        {% if t.basic_price %}
+                        <div style="font-size: 0.72rem; color: var(--text-muted);">Val: {{ format_inr(t.basic_price) }}</div>
+                        {% endif %}
+                        {% if t.cityscope_commission %}
+                        <div style="font-size: 0.72rem; color: var(--text-muted);">Brokerage: {{ format_inr(t.cityscope_commission) }}</div>
+                        {% endif %}
+                    </td>
+                    <td data-label="CSID" style="color:var(--text-muted); font-size:0.75rem; white-space: nowrap;">{{ t.property_id }}</td>
+                    <td data-label="Employee" style="white-space: nowrap;">
+                        <div style="display:flex; align-items:center;">
+                            <div class="avatar-circle">
+                                {{ t.employee_name[0]|upper if t.employee_name else '?' }}
+                            </div>
+                            <span style="font-size:0.8rem;">{{ t.employee_name }}</span>
+                        </div>
+                    </td>
+                    <td data-label="GST">
+                        {% if t.buyer_gst_applied or t.seller_gst_applied %}
+                            {% if t.buyer_gst_applied %}Buyer <span class="text-warning-custom" style="font-size:0.75rem;">-6%</span><br>{% endif %}
+                            {% if t.seller_gst_applied %}Seller <span class="text-warning-custom" style="font-size:0.75rem;">-6%</span>{% endif %}
+                        {% else %}
+                        No
+                        {% endif %}
+                    </td>
+                    <td data-label="Brokerage" style="white-space: nowrap;">{{ format_inr(t.net_commission) }}</td>
+                    <td data-label="Commission" style="white-space: nowrap;">
+                        <strong class="text-primary-custom">{{ format_inr(t.employee_commission) }}</strong>
+                    </td>
+                    <td data-label="Buyer" style="white-space: nowrap; line-height: 1.4; font-size: 0.8rem;">
+                        {% if t.buyer_name %}
+                        <div style="font-weight: 600; color: var(--text); font-size: 0.82rem; margin-bottom: 2px;">
+                            {{ t.buyer_name }}
+                            {% if t.buyer_is_broker %}
+                            <span style="background: #e0e7ff; color: #3730a3; padding: 1px 6px; border-radius: 10px; font-size: 0.65rem; font-weight: 700; margin-left: 4px;">Broker</span>
+                            {% endif %}
+                        </div>
+                        {% elif t.buyer_is_broker %}
+                        <div style="margin-bottom: 2px;"><span style="background: #e0e7ff; color: #3730a3; padding: 1px 6px; border-radius: 10px; font-size: 0.65rem; font-weight: 700;">Broker</span></div>
+                        {% endif %}
+                        <div>Total: <strong>{{ format_inr(t.buyer_commission_amount) if t.buyer_commission_amount else '—' }}</strong></div>
+                        <div style="color: var(--success); font-size: 0.75rem;">Recv: {{ format_inr(t.buyer_commission_received) }}</div>
+                        {% set buyer_pending = t.buyer_commission_amount - t.buyer_commission_received %}
+                        {% if t.payment_status != 'DONE' %}
+                        <div style="color: {% if buyer_pending > 0 %}var(--danger){% else %}var(--text-muted){% endif %}; font-size: 0.75rem;">
+                            Pend: {{ format_inr(buyer_pending) }}
+                        </div>
+                        {% endif %}
+                        {% if t.buyer_commission_date %}
+                        <div style="color: var(--text-muted); font-size: 0.7rem;">On: {{ t.buyer_commission_date.strftime('%d %b %Y') }}</div>
+                        {% endif %}
+                    </td>
+                    <td data-label="Seller" style="white-space: nowrap; line-height: 1.4; font-size: 0.8rem;">
+                        {% if t.seller_name %}
+                        <div style="font-weight: 600; color: var(--text); font-size: 0.82rem; margin-bottom: 2px;">
+                            {{ t.seller_name }}
+                            {% if t.seller_is_broker %}
+                            <span style="background: #e0e7ff; color: #3730a3; padding: 1px 6px; border-radius: 10px; font-size: 0.65rem; font-weight: 700; margin-left: 4px;">Broker</span>
+                            {% endif %}
+                        </div>
+                        {% elif t.seller_is_broker %}
+                        <div style="margin-bottom: 2px;"><span style="background: #e0e7ff; color: #3730a3; padding: 1px 6px; border-radius: 10px; font-size: 0.65rem; font-weight: 700;">Broker</span></div>
+                        {% endif %}
+                        <div>Total: <strong>{{ format_inr(t.seller_commission_amount) if t.seller_commission_amount else '—' }}</strong></div>
+                        <div style="color: var(--success); font-size: 0.75rem;">Recv: {{ format_inr(t.seller_commission_received) }}</div>
+                        {% set seller_pending = t.seller_commission_amount - t.seller_commission_received %}
+                        {% if t.payment_status != 'DONE' %}
+                        <div style="color: {% if seller_pending > 0 %}var(--danger){% else %}var(--text-muted){% endif %}; font-size: 0.75rem;">
+                            Pend: {{ format_inr(seller_pending) }}
+                        </div>
+                        {% endif %}
+                        {% if t.seller_commission_date %}
+                        <div style="color: var(--text-muted); font-size: 0.7rem;">On: {{ t.seller_commission_date.strftime('%d %b %Y') }}</div>
+                        {% endif %}
+                    </td>
+                    <td data-label="Status" style="white-space: nowrap;">
+                        {% if t.payment_status == 'DONE' %}
+                        <span class="status-badge done">DONE</span>
+                        {% elif t.payment_status == 'PARTIAL' %}
+                        <span class="status-badge partial" style="background: rgba(245,158,11,0.15); color: #d97706; padding: 4px 8px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase;">PARTIAL</span>
+                        {% else %}
+                        <span class="status-badge pending">PENDING</span>
+                        {% endif %}
+                        <br>
+                        {% if t.emp_payout_status == 'PAID' %}
+                        <span style="background:#dcfce7; color:#166534; padding: 3px 8px; border-radius: 20px; font-size: 0.68rem; font-weight: 600; margin-top: 4px; display: inline-block;">💰 Emp Paid</span>
+                        {% else %}
+                        <span style="background:#fef3c7; color:#92400e; padding: 3px 8px; border-radius: 20px; font-size: 0.68rem; font-weight: 600; margin-top: 4px; display: inline-block;">⏳ Emp Unpaid</span>
+                        {% endif %}
+                    </td>
+                    <td class="no-pdf" data-label="Action" style="white-space: nowrap;">
+                        <div style="display:flex; align-items:center; gap:8px; flex-wrap: nowrap;">
+                            <button type="button" class="btn-primary-sm" style="background:#0f172a; border-radius:20px; padding:4px 14px; white-space: nowrap; flex-shrink: 0; height: auto; min-width: max-content;" onclick='editTransaction({{ t.id }}, {{ t.employee_id }}, "{{ t.property_id|replace('"', '\\"') }}", "{{ t.property_name|replace('"', '\\"') }}", "{{ t.transaction_date.strftime('%Y-%m-%d') if t.transaction_date else '' }}", {{ t.cityscope_commission }}, {{ t.buyer_commission_amount or 0 }}, {{ t.seller_commission_amount or 0 }}, {{ 1 if t.buyer_gst_applied else 0 }}, {{ 1 if t.seller_gst_applied else 0 }}, {{ t.buyer_commission_received or 0 }}, "{{ t.buyer_commission_date.strftime('%Y-%m-%d') if t.buyer_commission_date else '' }}", {{ t.seller_commission_received or 0 }}, "{{ t.seller_commission_date.strftime('%Y-%m-%d') if t.seller_commission_date else '' }}", {{ t.basic_price or 0 }}, "{{ (t.buyer_name or '')|replace('"', '\\"') }}", "{{ (t.seller_name or '')|replace('"', '\\"') }}", {{ 1 if t.buyer_is_broker else 0 }}, {{ 1 if t.seller_is_broker else 0 }})'>Edit</button>
+                            <div class="dropdown-wrapper" style="position:relative;">
+                                <span class="action-menu" onclick="toggleDropdown(this)" style="flex-shrink:0; cursor:pointer;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"></circle><circle cx="12" cy="5" r="1"></circle><circle cx="12" cy="19" r="1"></circle></svg></span>
+                                <div class="dropdown-menu-custom" style="display:none; position:absolute; right:0; top:100%; background:#fff; border:1px solid #eee; border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,0.1); z-index:100; min-width:140px; padding:4px 0;">
+{% if t.payment_status != 'DONE' %}
+                                     <form method="POST" action="{{ url_for('admin_mark_paid', id=t.id) }}" style="margin:0;">
+                                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                         <button type="submit" style="width:100%; text-align:left; background:none; border:none; padding:8px 16px; font-size:0.8rem; cursor:pointer; color:var(--text); display:flex; align-items:center; gap:8px;">
+                                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                                             Mark Paid
+                                         </button>
+                                     </form>
+                                     <form method="POST" action="{{ url_for('admin_settle_transaction', id=t.id) }}" style="margin:0;">
+                                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                         <button type="submit" style="width:100%; text-align:left; background:none; border:none; padding:8px 16px; font-size:0.8rem; cursor:pointer; color:var(--warning); display:flex; align-items:center; gap:8px;">
+                                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--warning)" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                                             Force Complete
+                                         </button>
+                                     </form>
+                                     {% endif %}
+                                     {% if t.emp_payout_status == 'UNPAID' %}
+                                     <form method="POST" action="{{ url_for('admin_pay_employee_commission', id=t.id) }}" style="margin:0;">
+                                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                         <button type="submit" style="width:100%; text-align:left; background:none; border:none; padding:8px 16px; font-size:0.8rem; cursor:pointer; color:#166534; display:flex; align-items:center; gap:8px;" onclick="return confirm('Pay employee commission for this deal?')">
+                                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#166534" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
+                                             Pay Employee
+                                         </button>
+                                     </form>
+                                     {% else %}
+                                     <form method="POST" action="{{ url_for('admin_unpay_employee_commission', id=t.id) }}" style="margin:0;">
+                                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                         <button type="submit" style="width:100%; text-align:left; background:none; border:none; padding:8px 16px; font-size:0.8rem; cursor:pointer; color:#92400e; display:flex; align-items:center; gap:8px;" onclick="return confirm('Revert employee payout?')">
+                                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#92400e" stroke-width="2"><path d="M1 4v6h6"></path><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>
+                                             Undo Emp Payout
+                                         </button>
+                                     </form>
+                                     {% endif %}
+                                    <button type="button" onclick="openDeleteModal({{ t.id }})" style="width:100%; text-align:left; background:none; border:none; padding:8px 16px; font-size:0.8rem; cursor:pointer; color:var(--danger); display:flex; align-items:center; gap:8px;">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"></path><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                                        Delete
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        
+        <div class="pagination-footer no-pdf">
+            <div>Showing 1 to {{ transactions|length }} of {{ transactions|length }} transactions</div>
+            <div class="pagination-controls">
+                <button type="button"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"></polyline></svg></button>
+                <button type="button" class="active">1</button>
+                <button type="button"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg></button>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <p class="text-muted-custom" style="font-size:0.85rem;">No transactions added yet.</p>
+    {% endif %}
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal-overlay no-pdf" id="deleteModal">
+    <div class="modal-content" style="max-width: 400px; text-align: center; padding: 24px;">
+        <h3 style="margin-bottom: 12px; color:var(--text);">Delete Transaction</h3>
+        <p style="margin-bottom: 24px; color: var(--text-muted); font-size: 0.9rem;">Are you sure you want to delete this transaction? This action cannot be undone.</p>
+        <div style="display:flex; gap: 12px; justify-content: center;">
+            <button type="button" class="btn" style="background:#f1f5f9; color:#475569; padding:8px 24px; border-radius:8px; border:none; cursor:pointer; font-weight:600;" onclick="closeDeleteModal()">Cancel</button>
+            <form id="confirmDeleteForm" method="POST" action="" style="margin:0;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn" style="background:var(--danger); color:#fff; padding:8px 24px; border-radius:8px; border:none; cursor:pointer; font-weight:600;">Delete</button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+var employeeData = {
+    {% for emp in employees %}
+        {% set bg = '#e2e8f0' %}{% set color = '#475569' %}
+        {% set label = emp.team_type|replace('_', ' ')|title %}
+        {% if emp.team_type == 'CORE_TEAM' %}{% set bg = '#fef08a' %}{% set color = '#854d0e' %}
+        {% elif emp.team_type == 'NORMAL_TEAM' %}{% set bg = '#bfdbfe' %}{% set color = '#1e40af' %}
+        {% elif emp.team_type == 'RENT_TEAM' %}{% set bg = '#bbf7d0' %}{% set color = '#166534' %}{% endif %}
+        "{{ emp.id }}": { name: "{{ emp.name }}", bg: "{{ bg }}", color: "{{ color }}", label: "{{ label }}" },
+    {% endfor %}
+};
+
+function toggleEmpDropdown(e) {
+    var opts = document.getElementById('employee-options');
+    var isHidden = !opts.style.display || opts.style.display === 'none';
+    if (isHidden) {
+        opts.style.display = 'block';
+        var searchInput = document.getElementById('employee-search-input');
+        if (searchInput) {
+            searchInput.value = '';
+            filterEmployees('');
+            setTimeout(function() {
+                searchInput.focus();
+            }, 50);
+        }
+    } else {
+        opts.style.display = 'none';
+    }
+    if (e) e.stopPropagation();
+}
+
+function filterEmployees(query) {
+    query = (query || '').toLowerCase().trim();
+    var options = document.querySelectorAll('#employee-options-list .emp-option');
+    var count = 0;
+    options.forEach(function(opt) {
+        var name = (opt.getAttribute('data-name') || '').toLowerCase();
+        if (!query || name.indexOf(query) !== -1) {
+            opt.style.display = 'flex';
+            count++;
+        } else {
+            opt.style.display = 'none';
+        }
+    });
+    var noFound = document.getElementById('no-employee-found');
+    if (noFound) {
+        noFound.style.display = count === 0 ? 'block' : 'none';
+    }
+}
+
+function selectEmployee(id, name, bg, color, label) {
+    document.getElementById('hidden_employee_id').value = id;
+    document.getElementById('selected-employee-text').innerHTML = `<strong>${name}</strong> <span style="background-color: ${bg}; color: ${color}; padding: 2px 8px; border-radius: 12px; font-size: 0.7rem; font-weight: 600;">${label}</span>`;
+    document.getElementById('employee-options').style.display = 'none';
+    var searchInput = document.getElementById('employee-search-input');
+    if (searchInput) {
+        searchInput.value = '';
+        filterEmployees('');
+    }
+}
+
+window.addEventListener('click', function(event) {
+    var wrapper = document.querySelector('.custom-select-wrapper');
+    if (wrapper && !wrapper.contains(event.target)) {
+        var opts = document.getElementById('employee-options');
+        if (opts) opts.style.display = 'none';
+    }
+});
+
+function openAddModal() {
+    document.getElementById('form-title').innerText = 'Add New Transaction';
+    document.getElementById('transaction_id').value = '';
+    document.getElementById('transaction-form').reset();
+    
+    // Reset custom employee dropdown
+    document.getElementById('hidden_employee_id').value = '';
+    document.getElementById('selected-employee-text').innerHTML = `<span style="color: var(--text-muted);">— Select Employee —</span>`;
+    var opts = document.getElementById('employee-options');
+    if (opts) opts.style.display = 'none';
+    var searchInput = document.getElementById('employee-search-input');
+    if (searchInput) {
+        searchInput.value = '';
+        filterEmployees('');
+    }
+    
+    // Reset Name/Broker controls
+    var b_name = document.querySelector('input[name="buyer_name"]');
+    var s_name = document.querySelector('input[name="seller_name"]');
+    var b_brk = document.querySelector('input[name="buyer_is_broker"]');
+    var s_brk = document.querySelector('input[name="seller_is_broker"]');
+    if (b_name) b_name.value = '';
+    if (s_name) s_name.value = '';
+    if (b_brk) b_brk.checked = false;
+    if (s_brk) s_brk.checked = false;
+    
+    // Reset installment containers
+    document.getElementById('buyer-payments-container').innerHTML = '';
+    document.getElementById('seller-payments-container').innerHTML = '';
+    
+    // Reset basic price input
+    document.querySelector('input[name="basic_price"]').value = '';
+    
+    // Unlock agreed amounts
+    var b_amt = document.querySelector('input[name="buyer_commission_amount"]');
+    var s_amt = document.querySelector('input[name="seller_commission_amount"]');
+    b_amt.readOnly = false;
+    b_amt.style.backgroundColor = '';
+    b_amt.style.cursor = '';
+    s_amt.readOnly = false;
+    s_amt.style.backgroundColor = '';
+    s_amt.style.cursor = '';
+    
+    // Set default date to today
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    document.querySelector('input[name="transaction_date"]').value = `${yyyy}-${mm}-${dd}`;
+    
+    document.getElementById('form-submit-btn').innerText = 'Add Transaction';
+    document.getElementById('transactionModal').classList.add('open');
+}
+
+function updateTotalCommission() {
+    var buyer = parseFloat(document.querySelector('input[name="buyer_commission_amount"]').value) || 0;
+    var seller = parseFloat(document.querySelector('input[name="seller_commission_amount"]').value) || 0;
+    document.querySelector('input[name="cityscope_commission"]').value = buyer + seller;
+}
+
+
+
+function editTransaction(id, employee_id, property_id, property_name, transaction_date, cs_commission, buyer_commission, seller_commission, buyer_gst_applied, seller_gst_applied, buyer_received, buyer_date, seller_received, seller_date, basic_price, buyer_name, seller_name, buyer_is_broker, seller_is_broker) {
+    document.getElementById('form-title').innerText = 'Edit Transaction';
+    document.getElementById('transaction_id').value = id;
+    
+    document.getElementById('hidden_employee_id').value = employee_id;
+    if (employeeData[employee_id]) {
+        var d = employeeData[employee_id];
+        document.getElementById('selected-employee-text').innerHTML = `<strong>${d.name}</strong> <span style="background-color: ${d.bg}; color: ${d.color}; padding: 2px 8px; border-radius: 12px; font-size: 0.7rem; font-weight: 600;">${d.label}</span>`;
+    }
+    
+    document.querySelector('input[name="property_id"]').value = property_id;
+    document.querySelector('input[name="property_name"]').value = property_name;
+    document.querySelector('input[name="basic_price"]').value = basic_price || '';
+    document.querySelector('input[name="transaction_date"]').value = transaction_date;
+    document.querySelector('input[name="cityscope_commission"]').value = cs_commission;
+    document.querySelector('input[name="buyer_commission_amount"]').value = buyer_commission || '';
+    document.querySelector('input[name="seller_commission_amount"]').value = seller_commission || '';
+    document.querySelector('input[name="buyer_gst_applied"]').checked = (buyer_gst_applied === 1);
+    document.querySelector('input[name="seller_gst_applied"]').checked = (seller_gst_applied === 1);
+    
+    var b_name = document.querySelector('input[name="buyer_name"]');
+    var s_name = document.querySelector('input[name="seller_name"]');
+    var b_brk = document.querySelector('input[name="buyer_is_broker"]');
+    var s_brk = document.querySelector('input[name="seller_is_broker"]');
+    if (b_name) b_name.value = buyer_name || '';
+    if (s_name) s_name.value = seller_name || '';
+    if (b_brk) b_brk.checked = (buyer_is_broker === 1 || buyer_is_broker === true);
+    if (s_brk) s_brk.checked = (seller_is_broker === 1 || seller_is_broker === true);
+
+    var c_rate = document.querySelector('input[name="custom_commission_rate"]');
+    var c_comm = document.querySelector('input[name="custom_employee_commission"]');
+    if (c_rate) c_rate.value = '';
+    if (c_comm) c_comm.value = '';
+    
+    // Lock agreed amounts
+    var b_amt = document.querySelector('input[name="buyer_commission_amount"]');
+    var s_amt = document.querySelector('input[name="seller_commission_amount"]');
+    b_amt.readOnly = true;
+    b_amt.style.backgroundColor = '#f1f5f9';
+    b_amt.style.cursor = 'not-allowed';
+    s_amt.readOnly = true;
+    s_amt.style.backgroundColor = '#f1f5f9';
+    s_amt.style.cursor = 'not-allowed';
+    
+    // Populate installments dynamically
+    document.getElementById('buyer-payments-container').innerHTML = '';
+    document.getElementById('seller-payments-container').innerHTML = '';
+    
+    if (allPayments && allPayments[id]) {
+        var buyerList = allPayments[id]['BUYER'] || [];
+        buyerList.forEach(p => {
+            addPaymentRow('BUYER', p.amount, p.payment_date);
+        });
+        var sellerList = allPayments[id]['SELLER'] || [];
+        sellerList.forEach(p => {
+            addPaymentRow('SELLER', p.amount, p.payment_date);
+        });
+    }
+    
+    var opts = document.getElementById('employee-options');
+    if (opts) opts.style.display = 'none';
+    var searchInput = document.getElementById('employee-search-input');
+    if (searchInput) {
+        searchInput.value = '';
+        filterEmployees('');
+    }
+    
+    document.getElementById('form-submit-btn').innerText = 'Save Changes';
+    document.getElementById('transactionModal').classList.add('open');
+}
+
+function closeModal() {
+    document.getElementById('transactionModal').classList.remove('open');
+    var opts = document.getElementById('employee-options');
+    if (opts) opts.style.display = 'none';
+    var searchInput = document.getElementById('employee-search-input');
+    if (searchInput) {
+        searchInput.value = '';
+        filterEmployees('');
+    }
+}
+
+// Close modal when clicking outside of it
+window.onclick = function(event) {
+    var modal = document.getElementById('transactionModal');
+    var deleteModal = document.getElementById('deleteModal');
+    if (event.target == modal) {
+        closeModal();
+    }
+    if (event.target == deleteModal) {
+        closeDeleteModal();
+    }
+}
+
+function openDeleteModal(transactionId) {
+    document.getElementById('deleteModal').classList.add('open');
+    document.getElementById('confirmDeleteForm').action = '/admin/transactions/' + transactionId + '/delete';
+}
+
+function closeDeleteModal() {
+    document.getElementById('deleteModal').classList.remove('open');
+}
+
+function toggleDropdown(element) {
+    // close all other dropdowns
+    document.querySelectorAll('.dropdown-menu-custom').forEach(m => {
+        if (m !== element.nextElementSibling) m.style.display = 'none';
+    });
+    const menu = element.nextElementSibling;
+    menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+}
+
+document.addEventListener('click', function(e) {
+    if (!e.target.closest('.dropdown-wrapper')) {
+        document.querySelectorAll('.dropdown-menu-custom').forEach(m => {
+            m.style.display = 'none';
+        });
+    }
+});
+
+function filterTransactions() {
+    var input = document.getElementById("transactionSearch");
+    var filter = input.value.toLowerCase().trim();
+    var table = document.getElementById("transactionsTable");
+    if (!table) return;
+    var tr = table.getElementsByTagName("tr");
+
+    for (var i = 1; i < tr.length; i++) {
+        var rowText = tr[i].textContent || tr[i].innerText;
+        if (!filter || rowText.toLowerCase().indexOf(filter) > -1) {
+            tr[i].style.display = "";
+        } else {
+            tr[i].style.display = "none";
+        }
+    }
+}
+
+// Prefill search from URL parameter (?search=...)
+window.addEventListener('DOMContentLoaded', function() {
+    var urlParams = new URLSearchParams(window.location.search);
+    var searchParam = urlParams.get('search');
+    if (searchParam) {
+        var input = document.getElementById("transactionSearch");
+        if (input) {
+            input.value = searchParam;
+            filterTransactions();
+        }
+    }
+});
+</script>
+<script>
+    var allPayments = {{ payments_json|safe }};
+    
+    // Prevent mouse wheel from changing focused number inputs values
+    document.addEventListener('wheel', function(e) {
+        if (document.activeElement && document.activeElement.type === 'number') {
+            document.activeElement.blur();
+        }
+    });
+    
+    function addPaymentRow(party, amount = '', date = '') {
+        var container = document.getElementById(party === 'BUYER' ? 'buyer-payments-container' : 'seller-payments-container');
+        var row = document.createElement('div');
+        row.className = 'd-flex gap-2 mb-2 align-items-center';
+        row.style.width = '100%';
+        
+        var namePrefix = party === 'BUYER' ? 'buyer_payment' : 'seller_payment';
+        
+        row.innerHTML = `
+            <input type="number" class="form-control" name="${namePrefix}_amounts" placeholder="Portion Amount" min="0" step="1" value="${amount}" style="flex: 2; height: 36px; font-size: 0.85rem;" required>
+            <input type="date" class="form-control" name="${namePrefix}_dates" value="${date}" style="flex: 2; height: 36px; font-size: 0.85rem;" required>
+            <button type="button" onclick="this.parentElement.remove()" style="padding: 6px 10px; height: 36px; border-radius: 6px; border: 1px solid #fecaca; background: #fef2f2; color: #ef4444; display:flex; align-items:center; justify-content:center; cursor:pointer;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+            </button>
+        `;
+        container.appendChild(row);
+    }
+
+    function setPeriodMode(mode) {
+        document.getElementById('periodTypeInput').value = mode;
+        document.getElementById('periodFilterForm').submit();
+    }
+
+    function toggleExportMenu(e) {
+        e.stopPropagation();
+        var menu = document.getElementById('exportMenuDropdown');
+        if (menu) {
+            menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
+        }
+    }
+
+    function closeExportMenu() {
+        var menu = document.getElementById('exportMenuDropdown');
+        if (menu) {
+            menu.style.display = 'none';
+        }
+    }
+
+    document.addEventListener('click', function(e) {
+        var menu = document.getElementById('exportMenuDropdown');
+        if (menu && !e.target.closest('.dropdown-wrapper')) {
+            menu.style.display = 'none';
+        }
+    });
+
+    var transactionsDataForExport = [
+        {% for t in transactions %}
+        {
+            date: "{{ t.transaction_date.strftime('%Y-%m-%d') if t.transaction_date else '' }}",
+            property_id: {{ t.property_id|tojson }},
+            property_name: {{ t.property_name|tojson }},
+            basic_price: {{ t.basic_price or 0 }},
+            employee_name: {{ (t.employee_name or '')|tojson }},
+            buyer_name: {{ (t.buyer_name or '')|tojson }},
+            seller_name: {{ (t.seller_name or '')|tojson }},
+            gst_applied: {{ ('Yes' if (t.buyer_gst_applied or t.seller_gst_applied) else 'No')|tojson }},
+            cityscope_commission: {{ t.cityscope_commission or 0 }},
+            net_commission: {{ t.net_commission or 0 }},
+            employee_commission: {{ t.employee_commission or 0 }},
+            team_type: {{ (t.team_type or '')|tojson }},
+            buyer_commission_amount: {{ t.buyer_commission_amount or 0 }},
+            buyer_commission_received: {{ t.buyer_commission_received or 0 }},
+            buyer_commission_date: "{{ t.buyer_commission_date.strftime('%Y-%m-%d') if t.buyer_commission_date else '' }}",
+            seller_commission_amount: {{ t.seller_commission_amount or 0 }},
+            seller_commission_received: {{ t.seller_commission_received or 0 }},
+            seller_commission_date: "{{ t.seller_commission_date.strftime('%Y-%m-%d') if t.seller_commission_date else '' }}",
+            payment_status: {{ (t.payment_status or '')|tojson }},
+            emp_payout_status: {{ (t.emp_payout_status or '')|tojson }}
+        }{% if not loop.last %},{% endif %}
+        {% endfor %}
+    ];
+
+    function exportTransactionsExcel() {
+        var currentLabel = {{ period_label|tojson }};
+        var headers = [
+            "Deal Date",
+            "Property ID",
+            "Property Name",
+            "Basic Price (INR)",
+            "Total Brokerage (INR)",
+            "Brokerage (%)",
+            "Employee Name",
+            "GST Applied",
+            "Net Brok. (INR)",
+            "Employee Share (INR)",
+            "Employee Share (%)",
+            "Buyer Name",
+            "Buyer Brok. Total (INR)",
+            "Buyer Brok. Received (INR)",
+            "Buyer Brok. Pending (INR)",
+            "Buyer Last Payment Date",
+            "Seller Name",
+            "Seller Brok. Total (INR)",
+            "Seller Brok. Received (INR)",
+            "Seller Brok. Pending (INR)",
+            "Seller Last Payment Date",
+            "Deal Status",
+            "Employee Payout Status"
+        ];
+        
+        var rows = [];
+        rows.push(headers.map(h => `"${h}"`).join(","));
+
+        // Filter by active live search if present
+        var exportList = transactionsDataForExport;
+        var searchInput = document.getElementById("transactionSearch");
+        if (searchInput && searchInput.value.trim() !== "") {
+            var q = searchInput.value.trim().toLowerCase();
+            exportList = exportList.filter(t => {
+                return (t.property_id && t.property_id.toLowerCase().includes(q)) ||
+                       (t.property_name && t.property_name.toLowerCase().includes(q)) ||
+                       (t.employee_name && t.employee_name.toLowerCase().includes(q)) ||
+                       (t.buyer_name && t.buyer_name.toLowerCase().includes(q)) ||
+                       (t.seller_name && t.seller_name.toLowerCase().includes(q));
+            });
+        }
+        
+        exportList.forEach(t => {
+            var buyer_pending = Math.max(0, t.buyer_commission_amount - t.buyer_commission_received);
+            var seller_pending = Math.max(0, t.seller_commission_amount - t.seller_commission_received);
+            
+            var brk_pct = 0;
+            if (t.basic_price > 0 && t.cityscope_commission > 0) {
+                brk_pct = Math.round((t.cityscope_commission / t.basic_price) * 10000) / 100;
+            }
+            
+            // Calculate effective share percentage
+            var eff_pct = 0;
+            if (t.net_commission > 0) {
+                eff_pct = Math.round((t.employee_commission / t.net_commission) * 1000) / 10;
+            }
+            
+            var row = [
+                t.date,
+                t.property_id,
+                t.property_name,
+                t.basic_price ? t.basic_price.toLocaleString('en-IN') : (t.basic_price===0?0:t.basic_price),
+                t.cityscope_commission ? t.cityscope_commission.toLocaleString('en-IN') : (t.cityscope_commission===0?0:t.cityscope_commission),
+                brk_pct + "%",
+                t.employee_name,
+                t.gst_applied,
+                t.net_commission ? t.net_commission.toLocaleString('en-IN') : (t.net_commission===0?0:t.net_commission),
+                t.employee_commission ? t.employee_commission.toLocaleString('en-IN') : (t.employee_commission===0?0:t.employee_commission),
+                eff_pct + "%",
+                t.buyer_name,
+                t.buyer_commission_amount ? t.buyer_commission_amount.toLocaleString('en-IN') : (t.buyer_commission_amount===0?0:t.buyer_commission_amount),
+                t.buyer_commission_received ? t.buyer_commission_received.toLocaleString('en-IN') : (t.buyer_commission_received===0?0:t.buyer_commission_received),
+                buyer_pending ? buyer_pending.toLocaleString('en-IN') : (buyer_pending===0?0:buyer_pending),
+                t.buyer_commission_date,
+                t.seller_name,
+                t.seller_commission_amount ? t.seller_commission_amount.toLocaleString('en-IN') : (t.seller_commission_amount===0?0:t.seller_commission_amount),
+                t.seller_commission_received ? t.seller_commission_received.toLocaleString('en-IN') : (t.seller_commission_received===0?0:t.seller_commission_received),
+                seller_pending ? seller_pending.toLocaleString('en-IN') : (seller_pending===0?0:seller_pending),
+                t.seller_commission_date,
+                t.payment_status,
+                t.emp_payout_status
+            ];
+            
+            rows.push(row.map(val => {
+                var str = String(val === null || val === undefined ? "" : val);
+                // Escape double quotes
+                str = str.replace(/"/g, '""');
+                return `"${str}"`;
+            }).join(","));
+        });
+        
+        var csvString = rows.join("\n");
+        var blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csvString], { type: "text/csv;charset=utf-8;" }); // include UTF-8 BOM for Excel
+        var link = document.createElement("a");
+        var url = URL.createObjectURL(blob);
+        link.setAttribute("href", url);
+        var dateStr = new Date().toISOString().slice(0, 10);
+        var cleanLabel = currentLabel.replace(/[\s\/\\:()]+/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '');
+        link.setAttribute("download", `Transactions_${cleanLabel}_${dateStr}.csv`);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+</script>
+{% endblock %}

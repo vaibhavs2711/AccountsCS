@@ -1,0 +1,247 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Leaderboard — Cityscope Admin{% endblock %}
+
+{% block content %}
+<div class="page-header card-header-responsive">
+    <div>
+        <h2 style="margin:0;">🏆 Performance Leaderboard</h2>
+        <div class="page-meta" style="margin-top:4px;">Compare monthly and quarterly employee targets & business done</div>
+    </div>
+    <div class="no-pdf">
+        <button class="btn btn-secondary" id="exportPdfBtn" onclick="exportLeaderboardPDF()" style="display: flex; align-items: center; gap: 6px; padding: 8px 16px; font-weight: 600; border-radius: 8px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+            Export PDF
+        </button>
+    </div>
+</div>
+
+<!-- Historical Time Period Selector Bar -->
+<div class="card no-pdf" style="margin-bottom: 20px; padding: 14px 20px; background: #f8fafc; border: 1px solid var(--border);">
+    <form method="GET" style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin: 0;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-weight: 700; font-size: 0.88rem; color: var(--primary); display: flex; align-items: center; gap: 6px;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+                Period:
+            </span>
+            <span style="font-size: 0.82rem; color: var(--text); font-weight: 600;">
+                Viewing: <strong style="color: var(--primary);">{{ current_month_name }} {{ current_year }}</strong> <span style="color: var(--text-muted);">(Q{{ current_quarter }} | {{ fy_label }})</span>
+            </span>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+            <!-- Financial Year -->
+            <select name="fy_year" class="form-select" onchange="this.form.submit()" style="font-size: 0.82rem; font-weight: 600; padding: 6px 14px; height: 38px; min-width: 130px; border-radius: 8px; background-color: #fff; border: 1px solid #cbd5e1; cursor: pointer;">
+                {% for fy in period.available_fys %}
+                <option value="{{ fy.year }}" {% if period.fy_year == fy.year %}selected{% endif %}>
+                    {{ fy.label }}
+                </option>
+                {% endfor %}
+            </select>
+
+            <!-- Quarter -->
+            <select name="quarter" class="form-select" onchange="this.form.submit()" style="font-size: 0.82rem; font-weight: 600; padding: 6px 14px; height: 38px; min-width: 135px; border-radius: 8px; background-color: #fff; border: 1px solid #cbd5e1; cursor: pointer;">
+                <option value="1" {% if period.quarter == 1 %}selected{% endif %}>Q1 (Apr-Jun)</option>
+                <option value="2" {% if period.quarter == 2 %}selected{% endif %}>Q2 (Jul-Sep)</option>
+                <option value="3" {% if period.quarter == 3 %}selected{% endif %}>Q3 (Oct-Dec)</option>
+                <option value="4" {% if period.quarter == 4 %}selected{% endif %}>Q4 (Jan-Mar)</option>
+            </select>
+
+            <!-- Month -->
+            <select name="month" class="form-select" onchange="this.form.submit()" style="font-size: 0.82rem; font-weight: 600; padding: 6px 14px; height: 38px; min-width: 125px; border-radius: 8px; background-color: #fff; border: 1px solid #cbd5e1; cursor: pointer;">
+                <option value="4" {% if period.month == 4 %}selected{% endif %}>April</option>
+                <option value="5" {% if period.month == 5 %}selected{% endif %}>May</option>
+                <option value="6" {% if period.month == 6 %}selected{% endif %}>June</option>
+                <option value="7" {% if period.month == 7 %}selected{% endif %}>July</option>
+                <option value="8" {% if period.month == 8 %}selected{% endif %}>August</option>
+                <option value="9" {% if period.month == 9 %}selected{% endif %}>September</option>
+                <option value="10" {% if period.month == 10 %}selected{% endif %}>October</option>
+                <option value="11" {% if period.month == 11 %}selected{% endif %}>November</option>
+                <option value="12" {% if period.month == 12 %}selected{% endif %}>December</option>
+                <option value="1" {% if period.month == 1 %}selected{% endif %}>January</option>
+                <option value="2" {% if period.month == 2 %}selected{% endif %}>February</option>
+                <option value="3" {% if period.month == 3 %}selected{% endif %}>March</option>
+            </select>
+            
+            {% if request.args.get('month') or request.args.get('quarter') or request.args.get('fy_year') %}
+            <a href="?" style="font-size: 0.78rem; font-weight: 600; color: var(--accent); text-decoration: none; padding: 6px 12px; background: #eff6ff; border-radius: 8px; border: 1px solid #bfdbfe;">↺ Reset to Current</a>
+            {% endif %}
+        </div>
+    </form>
+</div>
+
+<div class="card">
+    <!-- Tab Navigation -->
+    <ul class="nav nav-pills mb-4 justify-content-center no-pdf" id="pills-tab" role="tablist" style="background: #f1f5f9; padding: 4px; border-radius: var(--radius); max-width: 400px; margin: 0 auto 20px;">
+        <li class="nav-item" role="presentation" style="flex: 1; text-align: center;">
+            <button class="nav-link active w-100" id="pills-admin-monthly-tab" data-bs-toggle="pill" data-bs-target="#pills-admin-monthly" type="button" role="tab" aria-controls="pills-admin-monthly" aria-selected="true" style="font-size: 0.85rem; font-weight: 600; padding: 8px 12px; border-radius: 6px;">
+                Monthly ({{ current_month_name }})
+            </button>
+        </li>
+        <li class="nav-item" role="presentation" style="flex: 1; text-align: center;">
+            <button class="nav-link w-100" id="pills-admin-quarterly-tab" data-bs-toggle="pill" data-bs-target="#pills-admin-quarterly" type="button" role="tab" aria-controls="pills-admin-quarterly" aria-selected="false" style="font-size: 0.85rem; font-weight: 600; padding: 8px 12px; border-radius: 6px;">
+                Quarterly (Q{{ current_quarter }})
+            </button>
+        </li>
+    </ul>
+
+    <!-- Tab Content -->
+    <div class="tab-content" id="pills-tabContent">
+        
+        <!-- Monthly Leaderboard Tab -->
+        <div class="tab-pane fade show active" id="pills-admin-monthly" role="tabpanel" aria-labelledby="pills-admin-monthly-tab">
+            {% if leaderboard_monthly|length > 0 %}
+            <div class="table-responsive table-responsive-stack">
+                <table class="table mb-0">
+                    <thead>
+                        <tr>
+                            <th style="width: 60px;">Rank</th>
+                            <th>Employee</th>
+                            <th>Team Type</th>
+                            <th>Business Done</th>
+                            <th>Monthly Target</th>
+                            <th>Achievement</th>
+                            <th>Progress</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for entry in leaderboard_monthly %}
+                        <tr>
+                            <td data-label="Rank">
+                                <strong class="lb-rank {% if loop.index == 1 %}gold{% elif loop.index == 2 %}silver{% elif loop.index == 3 %}bronze{% endif %} {% if loop.index > 3 %}text-muted-custom{% endif %}" style="font-size: 1.1rem; display: inline-block; width: auto;">
+                                    #{{ loop.index }}
+                                </strong>
+                            </td>
+                            <td data-label="Employee">
+                                <a href="{{ url_for('admin_employee_detail', id=entry.id) }}" style="font-weight: 600; color: var(--primary);">
+                                    {{ entry.name }}
+                                </a>
+                            </td>
+                            <td data-label="Team Type">
+                                <span class="badge-pending" style="background: #eff6ff; color: var(--accent); padding: 4px 10px;">{{ entry.team_label }}</span>
+                            </td>
+                            <td data-label="Business Done"><strong>{{ format_inr(entry.business_done) }}</strong></td>
+                            <td data-label="Monthly Target">{{ format_inr(entry.target) }}</td>
+                            <td data-label="Achievement">
+                                <span class="achievement-pct" style="font-weight: 700;" data-color="{{ entry.color }}">{{ entry.percentage }}%</span>
+                            </td>
+                            <td data-label="Progress">
+                                {% set p_width = [entry.percentage, 100]|min %}
+                                <div class="progress-track thin" style="width: 120px;">
+                                    <div class="progress-fill achievement-fill" data-width="{{ p_width }}" data-bg="{{ entry.color }}"></div>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="text-muted-custom" style="padding: 20px 0; text-align: center;">No data available for this month.</p>
+            {% endif %}
+        </div>
+
+        <!-- Quarterly Leaderboard Tab -->
+        <div class="tab-pane fade" id="pills-admin-quarterly" role="tabpanel" aria-labelledby="pills-admin-quarterly-tab">
+            {% if leaderboard_quarterly|length > 0 %}
+            <div class="table-responsive table-responsive-stack">
+                <table class="table mb-0">
+                    <thead>
+                        <tr>
+                            <th style="width: 60px;">Rank</th>
+                            <th>Employee</th>
+                            <th>Team Type</th>
+                            <th>Business Done</th>
+                            <th>Quarterly Target</th>
+                            <th>Achievement</th>
+                            <th>Progress</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for entry in leaderboard_quarterly %}
+                        <tr>
+                            <td data-label="Rank">
+                                <strong class="lb-rank {% if loop.index == 1 %}gold{% elif loop.index == 2 %}silver{% elif loop.index == 3 %}bronze{% endif %} {% if loop.index > 3 %}text-muted-custom{% endif %}" style="font-size: 1.1rem; display: inline-block; width: auto;">
+                                    #{{ loop.index }}
+                                </strong>
+                            </td>
+                            <td data-label="Employee">
+                                <a href="{{ url_for('admin_employee_detail', id=entry.id) }}" style="font-weight: 600; color: var(--primary);">
+                                    {{ entry.name }}
+                                </a>
+                            </td>
+                            <td data-label="Team Type">
+                                <span class="badge-pending" style="background: #eff6ff; color: var(--accent); padding: 4px 10px;">{{ entry.team_label }}</span>
+                            </td>
+                            <td data-label="Business Done"><strong>{{ format_inr(entry.business_done) }}</strong></td>
+                            <td data-label="Quarterly Target">{{ format_inr(entry.target) }}</td>
+                            <td data-label="Achievement">
+                                <span class="achievement-pct" style="font-weight: 700;" data-color="{{ entry.color }}">{{ entry.percentage }}%</span>
+                            </td>
+                            <td data-label="Progress">
+                                {% set p_width2 = [entry.percentage, 100]|min %}
+                                <div class="progress-track thin" style="width: 120px;">
+                                    <div class="progress-fill achievement-fill" data-width="{{ p_width2 }}" data-bg="{{ entry.color }}"></div>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="text-muted-custom" style="padding: 20px 0; text-align: center;">No data available for this quarter.</p>
+            {% endif %}
+        </div>
+
+    </div>
+</div>
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        document.querySelectorAll('.achievement-pct').forEach(el => {
+            el.style.color = el.getAttribute('data-color');
+        });
+        document.querySelectorAll('.achievement-fill').forEach(el => {
+            el.style.width = el.getAttribute('data-width') + '%';
+            el.style.background = el.getAttribute('data-bg');
+        });
+    });
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<script>
+function exportLeaderboardPDF() {
+    const btn = document.getElementById('exportPdfBtn');
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '⏳ Generating PDF...';
+    btn.disabled = true;
+
+    document.body.classList.add('generating-pdf');
+    const element = document.querySelector('.admin-main');
+    
+    // Find active tab to set filename
+    const isMonthly = document.getElementById('pills-admin-monthly').classList.contains('active');
+    const typeStr = isMonthly ? 'Monthly' : 'Quarterly';
+    const dateStr = new Date().toISOString().slice(0, 10);
+    
+    const opt = {
+        margin:       10,
+        filename:     `${typeStr}_Leaderboard_${dateStr}.pdf`,
+        image:        { type: 'jpeg', quality: 0.98 },
+        html2canvas:  { scale: 2, useCORS: true, logging: false },
+        jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    };
+
+    html2pdf().set(opt).from(element).save().then(() => {
+        document.body.classList.remove('generating-pdf');
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+    }).catch(err => {
+        console.error(err);
+        document.body.classList.remove('generating-pdf');
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+        alert('Failed to generate PDF. Please try again.');
+    });
+}
+</script>
+{% endblock %}

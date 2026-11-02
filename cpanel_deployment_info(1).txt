@@ -1,0 +1,38 @@
+cPanel Deployment & Database Information
+========================================
+
+DATABASE CREDENTIALS TEMPLATE
+-----------------------------
+(Fill these in with the details you just created in cPanel)
+
+Database Name: idtysccoehapresm_idtyscco_accounts
+Database User: idtysccoehapresm_dbuser
+Database Password: 84jrbn-pT7^JKYqR
+
+-------------------------------------------------
+
+.ENV FILE CONTENT
+-----------------
+Create a file named `.env` in your cPanel File Manager at:
+/home/idtysccoehapresm/public_html/accounts/.env
+
+Paste the following inside it (replace with your actual details):
+
+MYSQL_HOST=localhost
+MYSQL_USER=idtysccoehapresm_dbuser
+MYSQL_PASSWORD=84jrbn-pT7^JKYqR
+MYSQL_DB=idtysccoehapresm_idtyscco_accounts
+SECRET_KEY=cityscope_accountsQLBPS8256Q3196BHIPSALGOASPA!@*&%ED%#@
+
+
+DEPLOYMENT STEPS REMINDER
+-------------------------
+1. Upload `deploy.zip` to `/home/idtysccoehapresm/public_html/accounts` and Extract it.
+2. Create MySQL Database & User (with all privileges) in cPanel.
+3. Create the `.env` file using the credentials above.
+4. Go to "Setup Python App" in cPanel:
+   - Python Version: 3.9 (or latest)
+   - App Root: public_html/accounts
+   - App URL: accounts.cityscope.in
+5. In the Python App setup, scroll down, add `requirements.txt` and click "Run Pip Install".
+6. Restart the App and visit your website!

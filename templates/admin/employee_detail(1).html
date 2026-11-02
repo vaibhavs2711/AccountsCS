@@ -1,0 +1,749 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Employee Detail — Cityscope Admin{% endblock %}
+
+{% block content %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<div class="page-header">
+    <div>
+        <a href="{{ url_for('admin_employees') }}" class="no-pdf" style="color:var(--text-muted); text-decoration:none; display:flex; align-items:center; gap:4px; font-size:0.85rem; margin-bottom:8px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"></polyline></svg>
+            Back to Employees
+        </a>
+        <h2 style="color:var(--text); margin: 0;">Employee Detail</h2>
+    </div>
+    <div class="no-pdf" style="display: flex; gap: 8px; flex-wrap: wrap;">
+        <button class="btn btn-secondary" id="exportPdfBtn" onclick="exportEmployeePDF()" style="display: flex; align-items: center; gap: 6px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2-2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+            Export PDF
+        </button>
+        <button class="btn btn-primary" onclick="openEditModal()">✎ Edit Settings</button>
+        {% if employee.is_active is none or employee.is_active == 1 %}
+        <form method="POST" action="{{ url_for('admin_toggle_employee_status', id=employee.id) }}" style="margin: 0;" onsubmit="return confirm('Are you sure you want to deactivate {{ employee.name }}? They will not be able to log in, but all accounting transactions and records will be preserved.');">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-secondary" style="background-color: #f59e0b; border-color: #d97706; color: white; display: flex; align-items: center; gap: 6px;" title="Deactivate Employee Profile">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line></svg>
+                Deactivate Profile
+            </button>
+        </form>
+        {% else %}
+        <form method="POST" action="{{ url_for('admin_toggle_employee_status', id=employee.id) }}" style="margin: 0;" onsubmit="return confirm('Reactivate {{ employee.name }}? They will be able to log in again.');">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-secondary" style="background-color: #10b981; border-color: #059669; color: white; display: flex; align-items: center; gap: 6px;" title="Reactivate Employee Profile">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                Reactivate Profile
+            </button>
+        </form>
+        {% endif %}
+        <form method="POST" action="{{ url_for('admin_delete_employee', id=employee.id) }}" style="margin: 0;" onsubmit="return confirm('WARNING: This will permanently delete this employee and ALL their transactions, leaves, and history. Are you absolutely sure?');">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-secondary" style="background-color: var(--danger); border-color: var(--danger); color: white; padding: 6px 12px; display: flex; align-items: center; justify-content: center; height: 100%; box-sizing: border-box;" title="Delete Employee">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+            </button>
+        </form>
+    </div>
+</div>
+
+{% if success %}
+<div class="alert-success" style="margin-bottom: 20px;">{{ success }}</div>
+{% endif %}
+{% if error %}
+<div class="alert-error" style="margin-bottom: 20px;">{{ error }}</div>
+{% endif %}
+
+{% if employee.is_active is not none and employee.is_active == 0 %}
+<div class="alert no-pdf" style="background: #fffbeb; color: #92400e; border: 1px solid #fde68a; padding: 12px 18px; border-radius: 8px; margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;">
+    <div style="display: flex; align-items: center; gap: 10px;">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+        <div>
+            <strong>Account Deactivated:</strong> This employee profile is currently suspended from logging in. All historical transactions, payouts, leaves, and records are safely preserved for accounts.
+        </div>
+    </div>
+    <form method="POST" action="{{ url_for('admin_toggle_employee_status', id=employee.id) }}" style="margin: 0;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn btn-secondary" style="background: #10b981; border-color: #059669; color: white; font-size: 0.8rem; padding: 6px 14px; white-space: nowrap;">Reactivate Profile</button>
+    </form>
+</div>
+{% endif %}
+
+<!-- Historical Time Period Selector Bar (Auto-updating on selection) -->
+<div class="card no-pdf" style="margin-bottom: 20px; padding: 14px 20px; background: #f8fafc; border: 1px solid var(--border);">
+    <form method="GET" style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin: 0;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-weight: 700; font-size: 0.88rem; color: var(--primary); display: flex; align-items: center; gap: 6px;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+                Period:
+            </span>
+            <span style="font-size: 0.82rem; color: var(--text); font-weight: 600;">
+                Viewing: <strong style="color: var(--primary);">{{ month_name }} {{ year }}</strong> <span style="color: var(--text-muted);">(Q{{ quarter }} | {{ fy_label }})</span>
+            </span>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+            <!-- Financial Year -->
+            <select name="fy_year" class="form-select" onchange="this.form.submit()" style="font-size: 0.82rem; font-weight: 600; padding: 6px 14px; height: 38px; min-width: 130px; border-radius: 8px; background-color: #fff; border: 1px solid #cbd5e1; cursor: pointer;">
+                {% for fy in period.available_fys %}
+                <option value="{{ fy.year }}" {% if period.fy_year == fy.year %}selected{% endif %}>
+                    {{ fy.label }}
+                </option>
+                {% endfor %}
+            </select>
+
+            <!-- Quarter -->
+            <select name="quarter" class="form-select" onchange="this.form.submit()" style="font-size: 0.82rem; font-weight: 600; padding: 6px 14px; height: 38px; min-width: 135px; border-radius: 8px; background-color: #fff; border: 1px solid #cbd5e1; cursor: pointer;">
+                <option value="1" {% if period.quarter == 1 %}selected{% endif %}>Q1 (Apr-Jun)</option>
+                <option value="2" {% if period.quarter == 2 %}selected{% endif %}>Q2 (Jul-Sep)</option>
+                <option value="3" {% if period.quarter == 3 %}selected{% endif %}>Q3 (Oct-Dec)</option>
+                <option value="4" {% if period.quarter == 4 %}selected{% endif %}>Q4 (Jan-Mar)</option>
+            </select>
+
+            <!-- Month -->
+            <select name="month" class="form-select" onchange="this.form.submit()" style="font-size: 0.82rem; font-weight: 600; padding: 6px 14px; height: 38px; min-width: 125px; border-radius: 8px; background-color: #fff; border: 1px solid #cbd5e1; cursor: pointer;">
+                <option value="4" {% if period.month == 4 %}selected{% endif %}>April</option>
+                <option value="5" {% if period.month == 5 %}selected{% endif %}>May</option>
+                <option value="6" {% if period.month == 6 %}selected{% endif %}>June</option>
+                <option value="7" {% if period.month == 7 %}selected{% endif %}>July</option>
+                <option value="8" {% if period.month == 8 %}selected{% endif %}>August</option>
+                <option value="9" {% if period.month == 9 %}selected{% endif %}>September</option>
+                <option value="10" {% if period.month == 10 %}selected{% endif %}>October</option>
+                <option value="11" {% if period.month == 11 %}selected{% endif %}>November</option>
+                <option value="12" {% if period.month == 12 %}selected{% endif %}>December</option>
+                <option value="1" {% if period.month == 1 %}selected{% endif %}>January</option>
+                <option value="2" {% if period.month == 2 %}selected{% endif %}>February</option>
+                <option value="3" {% if period.month == 3 %}selected{% endif %}>March</option>
+            </select>
+            
+            {% if request.args.get('month') or request.args.get('quarter') or request.args.get('fy_year') %}
+            <a href="?" style="font-size: 0.78rem; font-weight: 600; color: var(--accent); text-decoration: none; padding: 6px 12px; background: #eff6ff; border-radius: 8px; border: 1px solid #bfdbfe;">↺ Reset to Current</a>
+            {% endif %}
+        </div>
+    </form>
+</div>
+
+<div class="dashboard-grid">
+    <!-- 1. Header -->
+    <div class="card emp-header-card" style="grid-column: 1 / -1;">
+        
+        <!-- Subtle background decoration -->
+        <div style="position: absolute; top: -50px; right: -50px; width: 300px; height: 300px; background: radial-gradient(circle, #eff6ff 0%, rgba(255,255,255,0) 70%); border-radius: 50%; z-index: 0;"></div>
+        <div style="position: absolute; bottom: -100px; left: 30%; width: 400px; height: 400px; background: radial-gradient(circle, #f8fafc 0%, rgba(255,255,255,0) 70%); border-radius: 50%; z-index: 0;"></div>
+
+        <!-- Avatar and Info -->
+        <div class="emp-header-info">
+            <div style="position: relative; width: 100px; height: 100px; background-color: #eff6ff; border-radius: 50%; display: flex; justify-content: center; align-items: center; flex-shrink: 0;">
+                <div style="width: 76px; height: 76px; background-color: var(--accent); border-radius: 50%; display: flex; justify-content: center; align-items: center; color: white; font-size: 2.2rem; font-weight: 700;">
+                    {{ employee.name[0]|upper }}
+                </div>
+                {% if employee.is_active is not none and employee.is_active == 0 %}
+                <div style="position: absolute; bottom: 8px; right: 8px; width: 18px; height: 18px; background-color: #ef4444; border-radius: 50%; border: 3px solid white;" title="Deactivated"></div>
+                {% else %}
+                <div style="position: absolute; bottom: 8px; right: 8px; width: 18px; height: 18px; background-color: #22c55e; border-radius: 50%; border: 3px solid white;" title="Active"></div>
+                {% endif %}
+            </div>
+            
+            <div>
+                <h2 style="margin: 0 0 16px 0; color: var(--text); font-size: 2rem; font-weight: 800; display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+                    {{ employee.name }}
+                    {% if employee.is_active is not none and employee.is_active == 0 %}
+                    <span style="background-color: #fee2e2; color: #dc2626; padding: 4px 12px; border-radius: 20px; font-size: 0.75rem; font-weight: 700; border: 1px solid #fca5a5;">Deactivated</span>
+                    {% else %}
+                    <span style="background-color: #dcfce7; color: #166534; padding: 4px 12px; border-radius: 20px; font-size: 0.75rem; font-weight: 700; border: 1px solid #86efac;">Active</span>
+                    {% endif %}
+                </h2>
+                <div class="emp-meta-row">
+                    <span style="background-color: #eff6ff; color: var(--accent); padding: 6px 16px; border-radius: 20px; font-size: 0.9rem; font-weight: 700; white-space: nowrap;">
+                        {{ team_label }}
+                    </span>
+                    
+                    <div class="emp-header-divider"></div>
+                    
+                    <div style="display: flex; flex-direction: column; justify-content: center; align-items: inherit;">
+                        <div style="font-weight: 700; font-size: 1.2rem; color: #334155; line-height: 1;">{{ format_inr(employee.salary) }}</div>
+                        <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px; line-height: 1;">Salary</div>
+                    </div>
+                    
+                    <div class="emp-header-divider"></div>
+                    
+                    <div style="display: flex; flex-direction: column; justify-content: center; align-items: inherit;">
+                        <div style="font-weight: 700; font-size: 1.2rem; color: #334155; line-height: 1;">{{ format_inr(m_target) }}</div>
+                        <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px; line-height: 1;">Current Monthly Target</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Stats Card -->
+        <div class="emp-header-stats">
+            <!-- Icon -->
+            <div style="display: flex; justify-content: center; align-items: center;">
+                <div style="width: 56px; height: 56px; background-color: #eff6ff; border-radius: 50%; display: flex; justify-content: center; align-items: center; color: var(--accent);">
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <circle cx="12" cy="12" r="6"></circle>
+                        <circle cx="12" cy="12" r="2"></circle>
+                    </svg>
+                </div>
+            </div>
+            <!-- Values -->
+            <div style="display: flex; flex-direction: column; justify-content: center; gap: 20px;">
+                <div>
+                    <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 4px; font-weight: 600;">Target Multiplier</div>
+                    <div style="font-size: 1.5rem; font-weight: 800; color: var(--accent); line-height: 1;">{{ multiplier }}x</div>
+                </div>
+                <div>
+                    <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 4px; font-weight: 600;">Commission Rate</div>
+                    <div style="font-size: 1.5rem; font-weight: 800; color: var(--accent); line-height: 1;">{{ commission_rate }}%</div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- 2. Charts Row -->
+    <div style="grid-column: 1 / -1; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px;">
+        
+        <!-- Commission Payout Pie -->
+        <div class="card" style="display:flex; flex-direction:column; align-items:center; justify-content:center;">
+            <div class="card-title">Commission Payout Status</div>
+            <div style="width: 200px; height: 200px;">
+                <canvas id="commissionPie"></canvas>
+            </div>
+            <div style="margin-top: 16px; display:flex; justify-content:center; gap: 24px; font-size: 0.85rem; width:100%;">
+                <div style="text-align:center;">
+                    <div style="color:#f59e0b; font-weight:700; font-size:1.1rem;">{{ format_inr(payout_summary.total_unpaid) }}</div>
+                    <div style="color:var(--text-muted);">Unpaid</div>
+                </div>
+                <div style="text-align:center;">
+                    <div style="color:#10b981; font-weight:700; font-size:1.1rem;">{{ format_inr(payout_summary.total_paid) }}</div>
+                    <div style="color:var(--text-muted);">Paid</div>
+                </div>
+            </div>
+            {% if active_advances_total > 0 %}
+            <div style="margin-top: 12px; text-align: center; font-size: 0.8rem; color: var(--danger); font-weight: 600; border-top: 1px dashed var(--border); padding-top: 12px; width: 100%;">
+                Active Advances: {{ format_inr(active_advances_total) }}
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Monthly Target Pie -->
+        <div class="card" style="display:flex; flex-direction:column; align-items:center; justify-content:center;">
+            <div class="card-title">{{ month_name }} {{ year }} Target</div>
+            <div style="width: 200px; height: 200px;">
+                <canvas id="monthlyPie"></canvas>
+            </div>
+            <div style="margin-top: 16px; display:flex; justify-content:center; gap: 24px; font-size: 0.85rem; width:100%;">
+                <div style="text-align:center;">
+                    <div style="color:var(--text); font-weight:700; font-size:1.1rem;">{{ format_inr(m_business) }}</div>
+                    <div style="color:var(--text-muted);">Business Done</div>
+                </div>
+                <div style="text-align:center;">
+                    <div style="color:#cbd5e1; font-weight:700; font-size:1.1rem;">{{ format_inr(m_remaining) }}</div>
+                    <div style="color:var(--text-muted);">Remaining</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quarterly Target Bar -->
+        <div class="card" style="display:flex; flex-direction:column; align-items:center; justify-content:center;">
+            <div class="card-title">Q{{ quarter }} FY {{ fy_year }}-{{ (fy_year+1)|string|truncate(2, True, '') }} Breakdown</div>
+            <div style="width: 100%; height: 200px;">
+                <canvas id="quarterlyBar"></canvas>
+            </div>
+            <div style="margin-top: 16px; font-size: 0.85rem; color:var(--text-muted); text-align:center;">
+                Quarterly Target: {{ format_inr(q_target) }}<br>
+                Business Done: {{ format_inr(q_business) }} ({{ q_pct }}%)
+            </div>
+        </div>
+
+    </div>
+
+    <!-- 2b. FY Quarterly Performance & Year-End Spillover Calculation Breakdown -->
+    <div class="card" style="grid-column: 1 / -1;">
+        <div class="card-title" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+            <span>FY {{ fy_year }}-{{ (fy_year+1)|string|truncate(2, True, '') }} Quarterly Performance & Year-End Spillover Calculation</span>
+            <span style="font-size: 0.75rem; background: #e0f2fe; color: #0369a1; padding: 4px 10px; border-radius: 12px; font-weight: 600;">Year-End Spillover System</span>
+        </div>
+        
+        <div class="table-responsive">
+            <table class="table mb-0">
+                <thead>
+                    <tr>
+                        <th>Quarter</th>
+                        <th>Target (₹)</th>
+                        <th>Raw Business (₹)</th>
+                        <th>Raw %</th>
+                        <th>Spillover Adjustment (₹)</th>
+                        <th>Adjusted Business (₹)</th>
+                        <th>Effective Achieved %</th>
+                        <th>Commission Factor</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for qd in fy_spillover_summary %}
+                    <tr>
+                        <td><strong>Q{{ qd.q }}</strong></td>
+                        <td>{{ format_inr(qd.target) }}</td>
+                        <td>{{ format_inr(qd.raw_business) }}</td>
+                        <td>
+                            <span style="font-weight: 600; color: {% if qd.raw_pct >= 95 %}var(--success){% elif qd.raw_pct >= 50 %}var(--warning){% else %}var(--danger){% endif %};">
+                                {{ qd.raw_pct }}%
+                            </span>
+                        </td>
+                        <td>
+                            {% if qd.spillover_received > 0 %}
+                                <span style="background: #dcfce7; color: #166534; padding: 2px 8px; border-radius: 10px; font-weight: 600; font-size: 0.75rem;">
+                                    +{{ format_inr(qd.spillover_received) }} (Filled)
+                                </span>
+                            {% elif qd.spillover_given > 0 %}
+                                <span style="background: #fef3c7; color: #92400e; padding: 2px 8px; border-radius: 10px; font-weight: 600; font-size: 0.75rem;">
+                                    −{{ format_inr(qd.spillover_given) }} (Surplus Shared)
+                                </span>
+                            {% else %}
+                                <span style="color: var(--text-muted);">—</span>
+                            {% endif %}
+                        </td>
+                        <td><strong>{{ format_inr(qd.adjusted_business) }}</strong></td>
+                        <td>
+                            <span class="status-badge {% if qd.adjusted_pct >= 95 %}done{% else %}pending{% endif %}">
+                                {{ qd.adjusted_pct }}%
+                            </span>
+                        </td>
+                        <td>
+                            {% if qd.factor >= 1.0 %}
+                                <span style="color: var(--success); font-weight: 700;">100% Full Rate</span>
+                            {% else %}
+                                <span style="color: var(--danger); font-weight: 600;">{{ (qd.factor * 100)|round(1) }}% Scaled</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div style="margin-top: 14px; padding: 12px 16px; background: #f8fafc; border: 1px dashed var(--border); border-radius: 8px; font-size: 0.8rem; color: var(--text-muted); line-height: 1.5;">
+            <strong>💡 How Year-End Spillover Works:</strong> Any surplus business above 100% achieved in later quarters (e.g. Q4 or Q3) is automatically transferred back to fill targets in earlier deficit quarters within the same Financial Year. This unlocks higher commission rates for {{ employee.name }}. <em>Note: Surplus resets on 31st March at FY end and does NOT carry forward to the next financial year.</em>
+        </div>
+    </div>
+    <div class="card" style="grid-column: 1 / -1;">
+        <div class="card-title" style="display: flex; justify-content: space-between; align-items: center;">
+            <span>Advances ({{ advances|length }})</span>
+            <button class="btn-primary-sm" onclick="document.getElementById('addAdvanceModal').classList.add('open')">+ Record Advance</button>
+        </div>
+        
+        {% if advances|length > 0 %}
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px;">
+            {% for adv in advances %}
+            <div style="border: 1px solid var(--border); border-radius: 8px; padding: 14px; background: {% if adv.status == 'SETTLED' %}#f8fafc{% else %}#fff{% endif %}; {% if adv.status == 'ACTIVE' %}border-left: 3px solid var(--danger);{% else %}border-left: 3px solid var(--success);{% endif %}">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <div>
+                        <span style="font-weight: 700; font-size: 1.05rem; color: var(--text);">{{ format_inr(adv.amount) }}</span>
+                        <span style="background: {% if adv.advance_type == 'SALARY' %}#dbeafe{% else %}#fef3c7{% endif %}; color: {% if adv.advance_type == 'SALARY' %}#1d4ed8{% else %}#92400e{% endif %}; padding: 2px 10px; border-radius: 12px; font-size: 0.7rem; font-weight: 600; margin-left: 8px;">{{ adv.advance_type }}</span>
+                    </div>
+                    {% if adv.status == 'ACTIVE' %}
+                        <span style="background: #fef3c7; color: #92400e; padding: 2px 10px; border-radius: 12px; font-size: 0.7rem; font-weight: 600;">ACTIVE</span>
+                    {% else %}
+                        <span style="background: #dcfce7; color: #166534; padding: 2px 10px; border-radius: 12px; font-size: 0.7rem; font-weight: 600;">SETTLED</span>
+                    {% endif %}
+                </div>
+                <div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 8px;">
+                    {{ adv.advance_date.strftime('%d %b %Y') }}
+                    {% if adv.reason %} — {{ adv.reason }}{% endif %}
+                </div>
+                {% if adv.status == 'ACTIVE' %}
+                <div style="display: flex; gap: 8px;">
+                    <form method="POST" action="{{ url_for('admin_settle_advance', id=adv.id) }}" style="margin: 0;">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="btn-success-sm" style="padding: 4px 12px; font-size: 0.72rem;">✓ Settle</button>
+                    </form>
+                    <form method="POST" action="{{ url_for('admin_delete_advance', id=adv.id) }}" style="margin: 0;" onsubmit="return confirm('Delete this advance record?');">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="btn-danger-sm" style="padding: 4px 12px; font-size: 0.72rem;">✕ Delete</button>
+                    </form>
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+            <p class="text-muted-custom" style="font-size:0.85rem; padding:8px 0;">No advances recorded.</p>
+        {% endif %}
+    </div>
+
+    <!-- 4. Transactions List -->
+    <div class="card" style="grid-column: 1 / -1;">
+        <div class="card-title">Transactions ({{ transactions|length }})</div>
+        {% if transactions|length > 0 %}
+            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px;">
+            {% for t in transactions %}
+            <div class="txn-item" style="border: 1px solid var(--border); border-radius: 8px; padding: 16px; background: #fff;">
+                <div class="txn-header" style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; gap: 8px;">
+                    <span class="txn-prop" style="font-weight: 600; color: var(--text);">{{ t.property_name }}</span>
+                    <div style="display: flex; flex-direction: column; gap: 4px; align-items: flex-end; flex-shrink: 0;">
+                        {% if t.emp_payout_status == 'PAID' %}
+                            <span style="background:#dcfce7; color:#166534; padding:2px 8px; border-radius:12px; font-size:0.68rem; font-weight:600;">💰 Comm. Paid</span>
+                        {% else %}
+                            <span style="background:#fef3c7; color:#92400e; padding:2px 8px; border-radius:12px; font-size:0.68rem; font-weight:600;">⏳ Comm. Unpaid</span>
+                        {% endif %}
+                        {% if t.payment_status == 'DONE' %}
+                            <span style="background:#dcfce7; color:#166534; padding:2px 8px; border-radius:12px; font-size:0.68rem; font-weight:600;">✓ Deal Settled</span>
+                        {% elif t.payment_status == 'PARTIAL' %}
+                            <span style="background:#fef08a; color:#854d0e; padding:2px 8px; border-radius:12px; font-size:0.68rem; font-weight:600;">◐ Partial</span>
+                        {% else %}
+                            <span style="background:#fef08a; color:#854d0e; padding:2px 8px; border-radius:12px; font-size:0.68rem; font-weight:600;">⏳ Pending</span>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="txn-meta" style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 12px;">
+                    {{ t.property_id }} | {% if t.transaction_date %}{{ t.transaction_date.strftime('%B %Y') }}{% else %}{{ month_name }} {{ year }}{% endif %}
+                </div>
+                <div class="txn-amounts" style="font-size: 0.85rem; color: var(--text);">
+                    Deal: {{ format_inr(t.cityscope_commission) }} |
+                    Commission: <strong>{{ format_inr(t.employee_commission) }}</strong>
+                    {% if t.gst_applied %}
+                        <span class="gst-note" style="color: var(--warning); font-size: 0.75rem;">(GST applied)</span>
+                    {% endif %}
+                </div>
+                <div class="txn-amounts" style="margin-top: 6px; font-size: 0.8rem; color: var(--text-muted); border-top: 1px dashed #e2e8f0; padding-top: 6px;">
+                    <strong>Buyer:</strong> {% if t.buyer_name %}{{ t.buyer_name }}{% else %}—{% endif %} {% if t.buyer_is_broker %}<span style="background: #e0e7ff; color: #3730a3; padding: 1px 6px; border-radius: 10px; font-size: 0.65rem; font-weight: 700; margin-left: 4px;">Broker</span>{% endif %} |
+                    <strong>Seller:</strong> {% if t.seller_name %}{{ t.seller_name }}{% else %}—{% endif %} {% if t.seller_is_broker %}<span style="background: #e0e7ff; color: #3730a3; padding: 1px 6px; border-radius: 10px; font-size: 0.65rem; font-weight: 700; margin-left: 4px;">Broker</span>{% endif %}
+                </div>
+                <!-- Pay/Unpay Commission Action -->
+                <div style="margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--border);">
+                    {% if t.emp_payout_status == 'UNPAID' %}
+                    <form method="POST" action="{{ url_for('admin_pay_employee_commission', id=t.id) }}" style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <input type="date" name="paid_date" value="{{ today }}" style="font-size: 0.75rem; padding: 4px 8px; border: 1px solid var(--border); border-radius: 6px;">
+                        <button type="submit" class="btn-success-sm" style="padding: 4px 14px; font-size: 0.72rem;" onclick="return confirm('Mark {{ format_inr(t.employee_commission) }} commission as paid?')">💰 Pay Commission</button>
+                    </form>
+                    {% else %}
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span style="font-size: 0.78rem; color: var(--success); font-weight: 600;">✓ Commission paid</span>
+                        <form method="POST" action="{{ url_for('admin_unpay_employee_commission', id=t.id) }}" style="margin: 0;">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit" class="btn-danger-sm" style="padding: 3px 10px; font-size: 0.68rem;" onclick="return confirm('Revert this payout?')">↩ Undo</button>
+                        </form>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+            </div>
+        {% else %}
+            <p class="text-muted-custom" style="font-size:0.85rem; padding:8px 0;">No transactions yet.</p>
+        {% endif %}
+    </div>
+
+    <!-- 5. Leave Requests List -->
+    <div class="card" style="grid-column: 1 / -1;">
+        <div class="card-title">Leave Requests ({{ leaves|length }})</div>
+        {% if leaves|length > 0 %}
+            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px;">
+            {% for lr in leaves %}
+            <div class="leave-item" style="border: 1px solid var(--border); border-radius: 8px; padding: 16px; background: #fff;">
+                <div class="leave-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <span class="leave-date" style="font-weight: 600; color: var(--primary); font-size: 0.92rem;">
+                        📅 {{ lr.date_of_leave.strftime('%A, %d %b %Y') }}
+                    </span>
+                    {% if lr.status == 'PENDING' %}
+                        <span class="badge-pending" style="background:#fef08a; color:#854d0e; padding:2px 8px; border-radius:12px; font-size:0.7rem; font-weight:600;">PENDING</span>
+                    {% elif lr.status == 'APPROVED' %}
+                        <span class="badge-approved" style="background:#dcfce7; color:#166534; padding:2px 8px; border-radius:12px; font-size:0.7rem; font-weight:600;">APPROVED</span>
+                    {% else %}
+                        <span class="badge-rejected" style="background:#fee2e2; color:#991b1b; padding:2px 8px; border-radius:12px; font-size:0.7rem; font-weight:600;">REJECTED</span>
+                    {% endif %}
+                </div>
+                <div style="font-size: 0.8rem; color: #475569; margin-bottom: 6px; display: flex; align-items: center; gap: 6px;">
+                    <span style="color: var(--text-muted);">📝 Applied on:</span>
+                    <strong>{{ lr.applied_on.strftime('%A, %d %b %Y') if lr.applied_on else '—' }}</strong>
+                    {% if lr.applied_on %}
+                    <span style="font-size: 0.72rem; color: var(--text-muted);">({{ lr.applied_on.strftime('%I:%M %p') }})</span>
+                    {% endif %}
+                </div>
+                {% if lr.reason %}
+                <div class="leave-reason" style="font-size: 0.85rem; color: var(--text-muted); padding-top: 6px; border-top: 1px dashed #e2e8f0;">{{ lr.reason }}</div>
+                {% endif %}
+            </div>
+            {% endfor %}
+            </div>
+        {% else %}
+            <p class="text-muted-custom" style="font-size:0.85rem; padding:8px 0;">No leave requests.</p>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Add Advance Modal -->
+<div class="modal-overlay no-pdf" id="addAdvanceModal">
+    <div class="modal-content" style="max-width: 500px;">
+        <div class="card" style="margin-bottom: 0; border: none; box-shadow: none;">
+            <div class="card-title" style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border); padding-bottom: 12px; margin-bottom: 20px;">
+                <span style="font-weight: 700; color: var(--primary);">Record Advance</span>
+                <span style="cursor: pointer; font-size: 1.2rem; color: var(--text-muted);" onclick="document.getElementById('addAdvanceModal').classList.remove('open')">✕</span>
+            </div>
+            <form method="POST" action="{{ url_for('admin_add_advance', id=employee.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="mb-3">
+                    <label class="form-label" style="font-size:0.85rem; font-weight:600;">Advance Type</label>
+                    <select class="form-select" name="advance_type" required>
+                        <option value="SALARY">Salary Advance</option>
+                        <option value="COMMISSION">Commission Advance</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" style="font-size:0.85rem; font-weight:600;">Amount ₹</label>
+                    <input type="number" class="form-control" name="amount" required min="1" step="1" placeholder="Enter amount">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" style="font-size:0.85rem; font-weight:600;">Date</label>
+                    <input type="date" class="form-control" name="advance_date" value="{{ today }}" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" style="font-size:0.85rem; font-weight:600;">Reason (Optional)</label>
+                    <input type="text" class="form-control" name="reason" placeholder="e.g. Urgent medical expense">
+                </div>
+                <div style="text-align: right; margin-top: 24px;">
+                    <button type="button" class="btn btn-secondary" onclick="document.getElementById('addAdvanceModal').classList.remove('open')" style="margin-right: 8px;">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Record Advance</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Data from backend
+    const commPaid = Number("{{ payout_summary.total_paid }}");
+    const commUnpaid = Number("{{ payout_summary.total_unpaid }}");
+    
+    const mBusiness = Number("{{ m_business }}");
+    const mRemaining = Number("{{ m_remaining }}");
+    const mTarget = Number("{{ m_target }}");
+
+    const qBreakdown = JSON.parse('{{ q_breakdown|tojson }}');
+    const qLabels = qBreakdown.map(item => item.month_name);
+    const qDataDone = qBreakdown.map(item => item.business);
+    const qDataRemaining = qBreakdown.map(item => Math.max(0, item.target - item.business));
+
+    // Colors matching dashboard
+    const colorSuccess = '#10b981';
+    const colorWarning = '#f59e0b';
+    const colorPrimary = '#2563eb';
+    const colorGray = '#cbd5e1';
+
+    // 1. Commission Payout Pie Chart
+    new Chart(document.getElementById('commissionPie'), {
+        type: 'pie',
+        data: {
+            labels: ['Paid', 'Unpaid'],
+            datasets: [{
+                data: [commPaid, commUnpaid],
+                backgroundColor: [colorSuccess, colorWarning],
+                borderWidth: 0
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return ' ₹' + context.raw.toLocaleString('en-IN');
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+    // 2. Monthly Target Pie (Doughnut)
+    new Chart(document.getElementById('monthlyPie'), {
+        type: 'doughnut',
+        data: {
+            labels: ['Business Done', 'Remaining Target'],
+            datasets: [{
+                data: [mBusiness, mRemaining],
+                backgroundColor: [colorPrimary, colorGray],
+                borderWidth: 0
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            cutout: '65%',
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return ' ₹' + context.raw.toLocaleString('en-IN');
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+    // 3. Quarterly Breakdown Bar Chart (Stacked)
+    new Chart(document.getElementById('quarterlyBar'), {
+        type: 'bar',
+        data: {
+            labels: qLabels,
+            datasets: [
+                {
+                    label: 'Business Done',
+                    data: qDataDone,
+                    backgroundColor: colorPrimary,
+                    borderRadius: 4
+                },
+                {
+                    label: 'Remaining Target',
+                    data: qDataRemaining,
+                    backgroundColor: colorGray,
+                    borderRadius: 4
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                x: { stacked: true, grid: { display: false } },
+                y: { stacked: true, beginAtZero: true, display: false }
+            },
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return context.dataset.label + ': ₹' + context.raw.toLocaleString('en-IN');
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+    // Close advance modal on outside click
+    window.addEventListener('click', function(event) {
+        var advModal = document.getElementById('addAdvanceModal');
+        if (event.target == advModal) {
+            advModal.classList.remove('open');
+        }
+    });
+</script>
+
+<!-- Edit Employee Form Modal -->
+<div class="modal-overlay no-pdf" id="editEmployeeModal">
+    <div class="modal-content">
+        <div class="card" style="margin-bottom: 0; border: none; box-shadow: none;">
+            <div class="card-title" style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border); padding-bottom: 12px; margin-bottom: 20px;">
+                <span style="font-weight: 700; color: var(--primary);">Edit Employee Settings</span>
+                <span style="cursor: pointer; font-size: 1.2rem; color: var(--text-muted);" onclick="closeEditModal()">✕</span>
+            </div>
+
+            <form method="POST" action="{{ url_for('admin_update_employee', id=employee.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="d-flex gap-3 mb-3 form-row-custom">
+                    <div style="flex:1;">
+                        <label class="form-label" style="font-size:0.85rem; font-weight:600;">Full Name</label>
+                        <input type="text" class="form-control" name="name" required value="{{ employee.name }}">
+                    </div>
+                    <div style="flex:1;">
+                        <label class="form-label" style="font-size:0.85rem; font-weight:600;">Email</label>
+                        <input type="email" class="form-control" name="email" required value="{{ employee.email }}">
+                    </div>
+                </div>
+                <div class="d-flex gap-3 mb-3 form-row-custom">
+                    <div style="flex:1;">
+                        <label class="form-label" style="font-size:0.85rem; font-weight:600;">Monthly Salary ₹</label>
+                        <input type="number" class="form-control" name="salary" required min="0" step="1" value="{{ employee.salary|int }}">
+                    </div>
+                    <div style="flex:1;">
+                        <label class="form-label" style="font-size:0.85rem; font-weight:600;">Team Type</label>
+                        <select class="form-select" name="team_type" required>
+                            <option value="CORE_TEAM" {% if employee.team_type == 'CORE_TEAM' %}selected{% endif %}>
+                                Core Team
+                            </option>
+                            <option value="NORMAL_TEAM" {% if employee.team_type == 'NORMAL_TEAM' %}selected{% endif %}>
+                                Normal Team
+                            </option>
+                            <option value="RENT_TEAM" {% if employee.team_type == 'RENT_TEAM' %}selected{% endif %}>
+                                Rent Team
+                            </option>
+                        </select>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" style="font-size:0.85rem; font-weight:600;">New Password (Optional)</label>
+                    <input type="password" class="form-control" name="new_password" placeholder="Leave blank to keep current password">
+                </div>
+                <div class="d-flex gap-3 mb-3 form-row-custom">
+                    <div style="flex:1;">
+                        <label class="form-label" style="font-size:0.85rem; font-weight:600;">Target Multiplier (x Salary)</label>
+                        <input type="number" class="form-control" name="target_multiplier" required min="0" step="0.1" value="{{ employee.target_multiplier }}">
+                    </div>
+                    <div style="flex:1;">
+                        <label class="form-label" style="font-size:0.85rem; font-weight:600;">Commission Rate (%)</label>
+                        <input type="number" class="form-control" name="commission_rate" required min="0" max="100" step="1" value="{{ (employee.commission_rate * 100)|int }}">
+                    </div>
+                </div>
+                <div style="text-align: right; margin-top: 24px;">
+                    <button type="button" class="btn btn-secondary" onclick="closeEditModal()" style="margin-right: 8px;">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<script>
+function openEditModal() {
+    document.getElementById('editEmployeeModal').classList.add('open');
+}
+
+function closeEditModal() {
+    document.getElementById('editEmployeeModal').classList.remove('open');
+}
+
+// Close modal when clicking outside of it
+window.addEventListener('click', function(event) {
+    var modal = document.getElementById('editEmployeeModal');
+    if (event.target == modal) {
+        closeEditModal();
+    }
+});
+
+function exportEmployeePDF() {
+    const btn = document.getElementById('exportPdfBtn');
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '⏳ Generating PDF...';
+    btn.disabled = true;
+
+    document.body.classList.add('generating-pdf');
+    const element = document.querySelector('.admin-main');
+    
+    const opt = {
+        margin:       10,
+        filename:     {{ ('Employee_Report_' ~ employee.name ~ '.pdf')|tojson }},
+        image:        { type: 'jpeg', quality: 0.98 },
+        html2canvas:  { scale: 2, useCORS: true, logging: false },
+        jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    };
+
+    html2pdf().set(opt).from(element).save().then(() => {
+        document.body.classList.remove('generating-pdf');
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+    }).catch(err => {
+        console.error(err);
+        document.body.classList.remove('generating-pdf');
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+        alert('Failed to generate PDF. Please try again.');
+    });
+}
+</script>
+{% endblock %}

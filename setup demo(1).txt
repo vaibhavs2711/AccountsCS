@@ -1,0 +1,73 @@
+Step 1 — Create the .env File
+On the Windows Server, go to C:\Apps\AccountsCS1\ (or wherever you pulled the project).
+
+Create a file named .env — open Notepad, paste this, then Save As → filename: .env → Save as type: All Files:
+
+MYSQL_HOST=localhost
+MYSQL_PORT=3306
+MYSQL_USER=root
+MYSQL_PASSWORD=your_mysql_password
+MYSQL_DB=cityscope_accounts
+SECRET_KEY=cityscope-secret-key-change-in-production-2024
+FLASK_ENV=production
+Replace your_mysql_password with whatever password you set during MySQL install.
+
+✅ Step 2 — Install Python Packages
+Open PowerShell in the project folder:
+
+powershell
+cd C:\Apps\AccountsCS1
+pip install -r requirements.txt
+✅ Step 3 — Test Run
+powershell
+python prod_server.py
+Open browser → http://localhost:5000
+
+Login page should appear ✅ → Press Ctrl+C to stop.
+
+✅ Step 4 — Install NSSM (Run as Windows Service)
+Download from https://nssm.cc/download → extract ZIP
+Copy win64\nssm.exe → paste into C:\Windows\System32\
+Then in PowerShell as Administrator:
+
+powershell
+# Find your Python path first
+where.exe python
+Note the path (e.g. C:\Python312\python.exe)
+
+powershell
+nssm install CityScopeApp
+A window opens — fill in:
+
+Field	Value
+Path	C:\Python312\python.exe ← your python path
+Startup directory	C:\Apps\AccountsCS1
+Arguments	prod_server.py
+Click "Install service" → then:
+
+powershell
+nssm start CityScopeApp
+✅ Step 5 — Open Firewall Port
+powershell
+# Run as Administrator
+New-NetFirewallRule -DisplayName "CityScope App" -Direction Inbound -Protocol TCP -LocalPort 5000 -Action Allow
+Access from other PCs on network: http://[server-ip]:5000
+
+✅ Step 6 — Cloudflare Tunnel (Internet Access)
+Download cloudflared from: https://github.com/cloudflare/cloudflared/releases
+
+File: cloudflared-windows-amd64.exe
+Rename to cloudflared.exe → copy to C:\Windows\System32\
+Install as service (PowerShell as Admin):
+
+powershell
+cloudflared service install YOUR_TUNNEL_TOKEN
+net start cloudflared
+Get YOUR_TUNNEL_TOKEN from your .env file — it's the TUNNEL_TOKEN value.
+
+🎯 After All Steps — What You'll Have
+What	Status
+App on local network	http://[server-ip]:5000
+App on internet	Via Cloudflare tunnel URL
+Auto-starts on reboot	✅ Yes (NSSM + MySQL service)
+Start with Step 1 and go one by one. Tell me at each step! 🚀

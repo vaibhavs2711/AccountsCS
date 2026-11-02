@@ -144,6 +144,9 @@ def login():
         else:
             user = models.get_user_by_email(email)
             if user and verify_password(password, user['password']):
+                if user.get('role') != 'ADMIN' and user.get('is_active') is not None and not user['is_active']:
+                    error = 'Your account has been deactivated. Please contact your administrator.'
+                    return render_template('login.html', error=error)
                 session.permanent = True
                 session['user_id'] = user['id']
                 if user['role'] == 'ADMIN':
@@ -1488,6 +1491,24 @@ def admin_update_employee(id):
     models.recalculate_employee_quarterly_commissions(id, quarter, fy_year)
 
     session['emp_success'] = 'Employee details updated successfully!'
+    return redirect(url_for('admin_employee_detail', id=id))
+
+
+@app.route('/admin/employee/<int:id>/toggle-status', methods=['POST'])
+@admin_required
+def admin_toggle_employee_status(id):
+    """Suspend or reactivate an employee profile."""
+    employee = models.get_user_by_id(id)
+    if not employee or employee['role'] == 'ADMIN':
+        session['emp_error'] = 'Cannot modify status of admin or non-existent user.'
+        return redirect(url_for('admin_employees'))
+
+    current_status = employee.get('is_active', 1)
+    new_status = 0 if (current_status == 1 or current_status is None) else 1
+    models.update_user_status(id, new_status)
+
+    status_str = "reactivated" if new_status == 1 else "deactivated"
+    session['emp_success'] = f'Employee {employee["name"]} has been {status_str} successfully.'
     return redirect(url_for('admin_employee_detail', id=id))
 
 
