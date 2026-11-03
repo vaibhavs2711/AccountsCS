@@ -51,6 +51,8 @@ jobs:
             # Download the latest main branch and make this folder match it.
             git fetch origin main
             git reset --hard origin/main
+            # Remove any conflicting or orphaned tunnel container so docker compose can recreate it cleanly
+            sudo docker rm -f cityscope-cloudflare-tunnel 2>/dev/null || true
             # Build and start services, remove unused services, and clean old images.
             sudo DOCKER_CONFIG=/tmp/.docker docker compose up -d --build --remove-orphans
             sudo docker image prune -f

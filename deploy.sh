@@ -20,15 +20,18 @@ if [ ! -f .env ]; then
     exit 1
 fi
 
-# 3. Build & start containers
+# 3. Clean up any conflicting standalone tunnel container if present
+docker rm -f cityscope-cloudflare-tunnel 2>/dev/null || true
+
+# 4. Build & start containers
 echo "🐳 Rebuilding and starting Docker containers..."
 docker compose up -d --build --remove-orphans
 
-# 4. Clean up old dangling images to save disk space on Zima
+# 5. Clean up old dangling images to save disk space on Zima
 echo "🧹 Cleaning up unused Docker images..."
 docker image prune -f
 
-# 5. Display container status
+# 6. Display container status
 echo "✅ Deployment successful! Active containers:"
 docker compose ps
 
