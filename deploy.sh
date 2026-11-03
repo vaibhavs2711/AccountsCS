@@ -20,18 +20,30 @@ if [ ! -f .env ]; then
     exit 1
 fi
 
-# 3. Clean up any conflicting standalone tunnel container if present
+# 3. Ensure .env has the active Cloudflare tunnel token for cityscope.tech
+touch .env
+ACTIVE_TOKEN="eyJhIjoiMjYyNmIxYzliNmE2YzA0ZWQwNTJhN2ZhNTBlMTYxYzkiLCJ0IjoiZDFiNmNiY2MtNGY2Yy00NWY5LWExNGMtMGI5OTlhZmViY2NmIiwicyI6Ik5qWTNOak5tTmpndE9UQTRNUzAwWVRFeExXRTNNVGd0WmpnNU9UWTJOemRoTldWayJ9"
+if grep -q "^TUNNEL_TOKEN=" .env; then
+  sed -i "s|^TUNNEL_TOKEN=.*|TUNNEL_TOKEN=$ACTIVE_TOKEN|" .env
+else
+  echo "TUNNEL_TOKEN=$ACTIVE_TOKEN" >> .env
+fi
+if ! grep -q "^SECRET_KEY=" .env; then
+  echo "SECRET_KEY=cityscope-secret-key-change-in-production-2024" >> .env
+fi
+
+# 4. Clean up any conflicting standalone tunnel container if present
 docker rm -f cityscope-cloudflare-tunnel 2>/dev/null || true
 
-# 4. Build & start containers
+# 5. Build & start containers
 echo "🐳 Rebuilding and starting Docker containers..."
 docker compose up -d --build --remove-orphans
 
-# 5. Clean up old dangling images to save disk space on Zima
+# 6. Clean up old dangling images to save disk space on Zima
 echo "🧹 Cleaning up unused Docker images..."
 docker image prune -f
 
-# 6. Display container status
+# 7. Display container status
 echo "✅ Deployment successful! Active containers:"
 docker compose ps
 

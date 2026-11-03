@@ -51,6 +51,18 @@ jobs:
             # Download the latest main branch and make this folder match it.
             git fetch origin main
             git reset --hard origin/main
+            # Ensure .env has the active Cloudflare tunnel token for cityscope.tech
+            touch .env
+            ACTIVE_TOKEN="eyJhIjoiMjYyNmIxYzliNmE2YzA0ZWQwNTJhN2ZhNTBlMTYxYzkiLCJ0IjoiZDFiNmNiY2MtNGY2Yy00NWY5LWExNGMtMGI5OTlhZmViY2NmIiwicyI6Ik5qWTNOak5tTmpndE9UQTRNUzAwWVRFeExXRTNNVGd0WmpnNU9UWTJOemRoTldWayJ9"
+            if grep -q "^TUNNEL_TOKEN=" .env; then
+              sed -i "s|^TUNNEL_TOKEN=.*|TUNNEL_TOKEN=$ACTIVE_TOKEN|" .env
+            else
+              echo "TUNNEL_TOKEN=$ACTIVE_TOKEN" >> .env
+            fi
+            if ! grep -q "^SECRET_KEY=" .env; then
+              echo "SECRET_KEY=cityscope-secret-key-change-in-production-2024" >> .env
+            fi
+
             # Remove any conflicting or orphaned tunnel container so docker compose can recreate it cleanly
             sudo docker rm -f cityscope-cloudflare-tunnel 2>/dev/null || true
             # Build and start services, remove unused services, and clean old images.
